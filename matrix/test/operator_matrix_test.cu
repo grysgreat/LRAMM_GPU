@@ -42,9 +42,9 @@ void scopy_strans_acc_test(){
     
 
 
-    strans(matrixTmp_dev,matrixB_dev,M,N);
+    strans(matrixB_dev,matrixB_dev,M,N);
 
-    cudaMemcpy(matrixTmp, matrixTmp_dev, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+    cudaMemcpy(matrixTmp, matrixB_dev, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
     
 
     int flag = 0;
@@ -495,13 +495,13 @@ int main(){
     //max_min_abs_test();
 
 
-    // scopy_strans_acc_test();
+     scopy_strans_acc_test();
 
     //scopy_strans_perf_test();
 
     //quant_perf_test();
     
-     quant_acc_test();
+    //quant_acc_test();
 
     return 0;
     // max_vec_perf_test();

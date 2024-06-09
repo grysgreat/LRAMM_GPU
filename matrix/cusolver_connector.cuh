@@ -2,7 +2,7 @@
 #include <cuda_runtime.h>
 #include "cusolverDn.h"
 #include "cusolver_utils.h"
-
+#include "operator_matrix.cuh"
 
 
 void cusolver_rsvd(
@@ -74,7 +74,7 @@ void cusolver_rsvd(
 
 void cusolver_rsvd_LR(
     int rows, int cols, float *d_A,
-    float *d_L,float *d_R,int rank, cusolverDnHandle_t *cusolverhandler){
+    float *d_U,float *d_V,int rank, cusolverDnHandle_t *cusolverhandler){
 
     cusolverDnHandle_t cusolverH = *cusolverhandler;
     cudaStream_t stream = NULL;
@@ -138,7 +138,6 @@ void cusolver_rsvd_LR(
         traits<data_type>::cuda_data_type, d_A, lda, traits<data_type>::cuda_data_type, d_S,
         traits<data_type>::cuda_data_type, d_U, ldu, traits<data_type>::cuda_data_type, d_V, ldv,
         traits<data_type>::cuda_data_type, d_work, workspaceInBytesOnDevice, h_work, workspaceInBytesOnHost, d_info));
-
 
     diag_matmul(d_V, d_S, rank, n);
 }

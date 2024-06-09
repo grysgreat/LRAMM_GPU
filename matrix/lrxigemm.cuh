@@ -16,6 +16,10 @@ void lrxigemm(T *A, T *B, T *C, int rowsA, int colsA, int rowsB, int colsB, int 
     CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
     CUBLAS_CHECK(cublasSetStream(cublasH, stream));
 
+    cusolverDnHandle_t cusolverH = NULL;
+    CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
+    
+
 
     /*Step 1. prepare work space*/
     int threadsPerBlock = 1024; 
@@ -71,4 +75,81 @@ void lrxigemm(T *A, T *B, T *C, int rowsA, int colsA, int rowsB, int colsB, int 
 
     T *AL_d, *AR_d, *BL_d, *BR_d;
 
+    cusolver_rsvd_LR(rowsA, colsA, A_d, AL_d, AR_d, rank, &cusolverH);
+    cusolver_rsvd_LR(rowsB, colsB, B_d, BL_d, BR_d, rank, &cusolverH);
+    cudaMalloc((T **)&AL_d, sizeof(T) * rowsA * rank);
+    cudaMalloc((T **)&AR_d, sizeof(T) * rank * colsA);
+    cudaMalloc((T **)&BL_d, sizeof(T) * rowsB * rank);
+    cudaMalloc((T **)&BR_d, sizeof(T) * rank * colsB);
+
+    float  beta = 0.0;
+    alpha = 1.0;
+    // cublasSgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_T, m, n, rank,
+    //             &alpha, AL_d, m, AR_d, n, &beta, d_U, n);    
+
+
+}
+
+
+
+template <typename T,int digit>
+void xigemm(T *A, T *B, T *C, int rowsA, int colsA, int rowsB, int colsB) {
+
+    using lowPtype = int8_t;
+
+    /*Step 0. prepare Handle and stream*/
+    cublasHandle_t cublasH = NULL;
+    cudaStream_t stream = NULL;
+    CUBLAS_CHECK(cublasCreate(&cublasH));
+    CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+    CUBLAS_CHECK(cublasSetStream(cublasH, stream));
+
+    cusolverDnHandle_t cusolverH = NULL;
+    CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
+    
+
+
+    /*Step 1. prepare work space*/
+    int threadsPerBlock = 1024; 
+    int max_work_size = (max(colsA*rowsA, colsB*rowsB)+threadsPerBlock-1)/threadsPerBlock;
+
+    T* c_work = (T *)malloc(sizeof(T) * max_work_size);
+    T* d_work;
+    cudaMalloc((T **)&d_work, sizeof(T) * max_work_size);
+
+    T *A_d, *B_d, *C_d, *PA_d, *PB_d;
+    lowPtype *AI_d, *BI_d;
+    int32_t *CI_d;
+    cudaMalloc((T **)&A_d, sizeof(T) * colsA*rowsA);
+    cudaMalloc((T **)&B_d, sizeof(T) * colsB*rowsB);
+
+    cudaMalloc((T **)&PA_d, sizeof(T) * colsA*rowsA);
+    cudaMalloc((T **)&PB_d, sizeof(T) * colsB*rowsB);
+
+    cudaMalloc((T **)&C_d, sizeof(T) * rowsA*colsB);
+    cudaMalloc((lowPtype **)&AI_d, sizeof(lowPtype) * colsA*rowsA);
+    cudaMalloc((lowPtype **)&BI_d, sizeof(lowPtype) * colsB*rowsB);
+    cudaMalloc((int32_t **)&CI_d, sizeof(int32_t) * rowsA*colsB);
+
+    cudaMemcpy(A_d, A, sizeof(float) * colsA*rowsA, cudaMemcpyHostToDevice);
+    cudaMemcpy(B_d, B, sizeof(float) * colsB*rowsB, cudaMemcpyHostToDevice);
+    
+
+    /*Step 2. Perform a direct quantization algorithm*/
+    const int max_int = (1<<(digit-1)) - 1;
+    T max_mA = max_abs(A_d, d_work, c_work, colsA*rowsA);
+    T max_mB = max_abs(B_d, d_work, c_work, colsB*rowsB);
+    T lambdaA = (T)max_int/max_mA;
+    T lambdaB = (T)max_int/max_mB;
+    T lambdaC = lambdaA*lambdaB;
+
+    quantitize_int8(A_d, AI_d, rowsA, colsA, lambdaA);
+    quantitize_int8(B_d, BI_d, rowsB, colsB, lambdaB);
+
+
+    cut_gemm(AI_d, BI_d, CI_d, rowsA, colsA, rowsB, colsB);
+
+    dequantitize_int32(CI_d, C_d, rowsA, colsB, lambdaC);
+
+    cudaMemcpy( C,C_d, sizeof(T) * rowsA * colsB, cudaMemcpyDeviceToHost);
 }

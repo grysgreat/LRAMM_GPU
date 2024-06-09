@@ -17,7 +17,11 @@ void strans(float *odata, float *idata,int rows,int cols);
 
 void quantitize_int8(float * matrix_in,int8_t * matrix_out,int nx,int ny,float lambda);
 
+
 void dequantitize_int8(int8_t * matrix_in,float * matrix_out,int nx,int ny,float lambda);
+
+void dequantitize_int32(int32_t * matrix_in,float * matrix_out,int nx,int ny,float lambda);
+
 
 void diag_matmul(float* A, float* x, int row, int col);
 
@@ -46,5 +50,13 @@ __global__ void quantitize_cuda_int8(float * matrix_in,int8_t * matrix_out,int n
 
 __global__ void dequantitize_cuda_int8(int8_t * matrix_in,float * matrix_out,int nx,int ny,float lambda);
 
+__global__ void dequantitize_cuda_int32(int32_t * matrix_in,float * matrix_out,int nx,int ny,float lambda);
+
 __global__ void rowMax(float *matrix, float *row_max, int rows, int cols);
 
+
+
+void Itrans(int32_t *odata, int32_t *idata,int rows,int cols);
+
+
+void I8trans(int8_t *odata, int8_t *idata,int rows,int cols);

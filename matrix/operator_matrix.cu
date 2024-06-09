@@ -203,12 +203,22 @@ void quantitize_int8(float * matrix_in,int8_t * matrix_out,int nx,int ny,float l
     cudaDeviceSynchronize();
 }
 
+
 void dequantitize_int8(int8_t * matrix_in,float * matrix_out,int nx,int ny,float lambda){
     dim3 block(32, 32);
     //二维线程网格，128×128
     dim3 grid((nx)/block.x, (ny)/block.y);
 
     dequantitize_cuda_int8<<<grid,block>>>(matrix_in,matrix_out,nx,ny,lambda);
+    cudaDeviceSynchronize();
+}
+
+void dequantitize_int32(int32_t * matrix_in,float * matrix_out,int nx,int ny,float lambda){
+    dim3 block(32, 32);
+    //二维线程网格，128×128
+    dim3 grid((nx)/block.x, (ny)/block.y);
+
+    dequantitize_cuda_int32<<<grid,block>>>(matrix_in,matrix_out,nx,ny,lambda);
     cudaDeviceSynchronize();
 }
 
@@ -235,6 +245,48 @@ __global__ void strans_cuda(float *odata, const float *idata)
   for (int j = 0; j < TILE_DIM; j += BLOCK_ROWS)
      odata[(y+j)*width + x] = tile[threadIdx.x][threadIdx.y + j];
 }
+
+__global__ void Itrans_cuda(int32_t *odata, const int32_t *idata)
+{
+  __shared__ int32_t tile[TILE_DIM][TILE_DIM+1];
+    
+  int x = blockIdx.x * TILE_DIM + threadIdx.x;
+  int y = blockIdx.y * TILE_DIM + threadIdx.y;
+  int width = gridDim.x * TILE_DIM;
+
+  for (int j = 0; j < TILE_DIM; j += BLOCK_ROWS)
+     tile[threadIdx.y+j][threadIdx.x] = idata[(y+j)*width + x];
+
+  __syncthreads();
+
+  x = blockIdx.y * TILE_DIM + threadIdx.x;  // transpose block offset
+  y = blockIdx.x * TILE_DIM + threadIdx.y;
+
+  for (int j = 0; j < TILE_DIM; j += BLOCK_ROWS)
+     odata[(y+j)*width + x] = tile[threadIdx.x][threadIdx.y + j];
+}
+
+__global__ void I8trans_cuda(int8_t *odata, const int8_t *idata)
+{
+  __shared__ int8_t tile[TILE_DIM][TILE_DIM+1];
+    
+  int x = blockIdx.x * TILE_DIM + threadIdx.x;
+  int y = blockIdx.y * TILE_DIM + threadIdx.y;
+  int width = gridDim.x * TILE_DIM;
+
+  for (int j = 0; j < TILE_DIM; j += BLOCK_ROWS)
+     tile[threadIdx.y+j][threadIdx.x] = idata[(y+j)*width + x];
+
+  __syncthreads();
+
+  x = blockIdx.y * TILE_DIM + threadIdx.x;  // transpose block offset
+  y = blockIdx.x * TILE_DIM + threadIdx.y;
+
+  for (int j = 0; j < TILE_DIM; j += BLOCK_ROWS)
+     odata[(y+j)*width + x] = tile[threadIdx.x][threadIdx.y + j];
+}
+
+
 
 
 // CUDA kernel to compute the max of elements in an array
@@ -347,7 +399,15 @@ __global__ void dequantitize_cuda_int8(int8_t * matrix_in,float * matrix_out,int
 
     matrix_out[idx] = ((float)matrix_in[idx]/lambda);
 }
+__global__ void dequantitize_cuda_int32(int32_t * matrix_in,float * matrix_out,int nx,int ny,float lambda)
+{
+    int ix = threadIdx.x+blockDim.x*blockIdx.x;
+    int iy = threadIdx.y+blockDim.y*blockIdx.y;
+    int idx = ix+iy*ny;
 
+
+    matrix_out[idx] = ((float)matrix_in[idx]/lambda);
+}
 
 __global__ void rowMax(float *matrix, float *row_max, int rows, int cols) {
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -373,6 +433,23 @@ __global__ void _diag_matmul(float* A, float* x, int row, int col){
         int j = i/col;
         A[i] = A[i] *x[j];
     }
+}
+
+
+void Itrans(int32_t *odata, int32_t *idata,int rows,int cols){
+    dim3 dimGrid(rows/TILE_DIM, cols/TILE_DIM, 1);
+    dim3 dimBlock(TILE_DIM, BLOCK_ROWS, 1);    
+
+    Itrans_cuda<<<dimGrid,dimBlock>>>(odata,idata);
+    cudaDeviceSynchronize();
+}
+
+void I8trans(int8_t *odata, int8_t *idata,int rows,int cols){
+    dim3 dimGrid(rows/TILE_DIM, cols/TILE_DIM, 1);
+    dim3 dimBlock(TILE_DIM, BLOCK_ROWS, 1);    
+
+    I8trans_cuda<<<dimGrid,dimBlock>>>(odata,idata);
+    cudaDeviceSynchronize();
 }
 
 
