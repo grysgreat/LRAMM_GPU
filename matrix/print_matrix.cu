@@ -8,7 +8,7 @@ void printMatrix(float matrix[], int rows, int cols) {
         for (int j = 0; j < cols; ++j) {
             // 计算数组中元素的索引
             int index = i * cols + j;
-            printf("%.4f   \t", matrix[index]);
+            printf("%.2f ", matrix[index]);
         }
         std::cout << std::endl;
     }

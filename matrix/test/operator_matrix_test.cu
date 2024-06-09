@@ -159,8 +159,8 @@ T get_max(T* matrix,int rows,int cols){
 }
 
 
-int quant_perf_test(){
-    int num = 8192;
+void quant_perf_test(){
+    int num = 1024*8;
     int N=num,M=num,K=num;
 
     float *matrixA = (float *)malloc(sizeof(float) * M*N);
@@ -207,17 +207,65 @@ int quant_perf_test(){
     quantitize_int8(matrixA_dev,matrixA8_dev,M,N,lambdaAnew);
 
     auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> diff = end - start;
-    int time  = diff.count()*1000*1000;
+    std::chrono::duration<double, std::milli> diff = end - start;
+    int time  = diff.count();
     std::cout<<"size="<<M<<"//quant - gpu time:" << std::fixed << std::setprecision(6) << time << std::endl;
 
 
 }
 
+void quant_acc_test(){
+    int num = 32;
+    int N=num,M=num,K=num;
 
+    float *matrixA = (float *)malloc(sizeof(float) * M*N);
+    int8_t *matrixA8 = (int8_t *)malloc(sizeof(int8_t) * M*N);
+    float *matrixB = (float *)malloc(sizeof(float) * M*N);
+    generate_matrix<float>(matrixA,M,N,'u');
+
+
+    float max_mAR =get_max<float>(matrixA,M,N);
+    const int max_int = (1<<(8-1)) - 1;
+    float lambdaAnew = (float)max_int/max_mAR;
+
+    printMatrix(matrixA,M,N);
+    std::cout<<std::endl;
+    float *matrixA_dev;
+    float *matrixB_dev;
+    float *matrixC_dev;
+    int8_t* matrixA8_dev;
+    int8_t* matrixA8_dev_ans= (int8_t *)malloc(sizeof(int8_t) * M*N);
+    cudaMalloc((void**)&matrixA_dev, sizeof(float) * M*N);
+    cudaMalloc((void**)&matrixB_dev, sizeof(float) * M*N);
+    cudaMalloc((void**)&matrixC_dev, sizeof(float) * M*N);
+    cudaMalloc((void**)&matrixA8_dev, sizeof(int8_t) * M*N);
+
+    cudaMemcpy(matrixA_dev, matrixA, sizeof(float) * M*N, cudaMemcpyHostToDevice);
+    cudaMemcpy(matrixB_dev, matrixB, sizeof(float) * M*N, cudaMemcpyHostToDevice);
+  
+
+    quantitize_int8(matrixA_dev,matrixA8_dev,M,N,lambdaAnew);
+
+    printf("%f,%f\n",lambdaAnew,max_mAR);
+
+    cudaMemcpy( matrixA8_dev_ans,matrixA8_dev, sizeof(int8_t) * M*N, cudaMemcpyDeviceToHost);
+
+    for (size_t i = 0; i < M; ++i) { // 遍历行
+        for (size_t j = 0; j < N; ++j) { // 遍历列
+            // 将int8_t转换为int以打印
+            std::cout << static_cast<int>(matrixA8_dev_ans[i*N+j]) << " ";
+        }
+        std::cout << std::endl; // 每行后换行
+    }
+
+    dequantitize_int8(matrixA8_dev,matrixA_dev,M,N,lambdaAnew);
+    cudaMemcpy( matrixB,matrixA_dev, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+
+    printMatrix(matrixB,M,N);
+}
 
 // this function calls the CUDA kernel
-int max_min_abs_test() {
+void max_min_abs_test() {
     int number= 8192;
     int size = number*number;
     float gloden_avg=0;
@@ -327,11 +375,6 @@ int max_min_abs_test() {
 
 }
 
-
-
-
-
-
 int max_vec_perf_test(){
     int num = 16384;
     int N=num,M=num,K=num;
@@ -381,8 +424,6 @@ int max_vec_perf_test(){
 
 
 }
-
-
 
 int max_vec_acc_test(){
     int num = 8192;
@@ -448,19 +489,21 @@ int max_vec_acc_test(){
 
 }
 
-
 int main(){
 
 
-    // max_min_abs_test();
+    //max_min_abs_test();
 
 
     // scopy_strans_acc_test();
 
     //scopy_strans_perf_test();
 
-    quant_perf_test();
+    //quant_perf_test();
     
+     quant_acc_test();
+
+    return 0;
     // max_vec_perf_test();
     // max_vec_acc_test();
 }

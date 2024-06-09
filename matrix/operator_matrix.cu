@@ -335,13 +335,15 @@ __global__ void quantitize_cuda_int8(float * matrix_in,int8_t * matrix_out,int n
     int iy = threadIdx.y+blockDim.y*blockIdx.y;
     int idx = ix+iy*ny;
 
-    matrix_out[idx] = (matrix_in[idx]*lambda);
+    
+    matrix_out[idx] = __float2int_rd(matrix_in[idx]*lambda);
 }
 __global__ void dequantitize_cuda_int8(int8_t * matrix_in,float * matrix_out,int nx,int ny,float lambda)
 {
     int ix = threadIdx.x+blockDim.x*blockIdx.x;
     int iy = threadIdx.y+blockDim.y*blockIdx.y;
     int idx = ix+iy*ny;
+
 
     matrix_out[idx] = ((float)matrix_in[idx]/lambda);
 }
@@ -361,3 +363,26 @@ __global__ void rowMax(float *matrix, float *row_max, int rows, int cols) {
         row_max[tid] = max_val;
     }
 }
+
+__global__ void _diag_matmul(float* A, float* x, int row, int col){
+
+    int size = row*col;
+    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if(i<size){
+        int j = i/col;
+        A[i] = A[i] *x[j];
+    }
+}
+
+
+void diag_matmul(float* A, float* x, int row, int col){
+    int size = row*col;
+    int threadsPerBlock = 1024;
+    int blocksPerGrid = (size + threadsPerBlock - 1) / threadsPerBlock;
+    _diag_matmul<<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(int)>>>(A, x, row,col);
+     
+    
+}
+
+

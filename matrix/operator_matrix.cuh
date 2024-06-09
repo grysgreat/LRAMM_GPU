@@ -19,6 +19,8 @@ void quantitize_int8(float * matrix_in,int8_t * matrix_out,int nx,int ny,float l
 
 void dequantitize_int8(int8_t * matrix_in,float * matrix_out,int nx,int ny,float lambda);
 
+void diag_matmul(float* A, float* x, int row, int col);
+
 __global__ void scopy(float * matrix_in,float * matrix_out,int rows,int cols);
 
 // __global__ void strans(float * matrix,float * result , int rows, int cols);
@@ -45,3 +47,4 @@ __global__ void quantitize_cuda_int8(float * matrix_in,int8_t * matrix_out,int n
 __global__ void dequantitize_cuda_int8(int8_t * matrix_in,float * matrix_out,int nx,int ny,float lambda);
 
 __global__ void rowMax(float *matrix, float *row_max, int rows, int cols);
+
