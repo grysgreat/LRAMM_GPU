@@ -29,7 +29,7 @@ void print_Matrix(float matrix[], int rows, int cols) {
     for (int i = 0; i < rows; ++i) {
         for (int j = 0; j < cols; ++j) {
             int index = i * cols + j;
-            printf("%.4f   \t", matrix[index]);
+            printf("%.1f ", matrix[index]);
         }
         std::cout << std::endl;
     }
@@ -42,8 +42,8 @@ int main(int argc, char *argv[]) {
 
     using data_type = float;
     /* Input matrix dimensions */
-    const int64_t m = 5;
-    const int64_t n = 5;
+    const int64_t m = 32;
+    const int64_t n = 32;
     const int64_t lda = m;;
     const int64_t ldu = m;
     const int64_t ldv = n;
@@ -61,13 +61,15 @@ int main(int argc, char *argv[]) {
     data_type *d_U = nullptr;
     data_type *d_S = nullptr;
     data_type *d_V = nullptr;
+    data_type *d_AO = nullptr;
 
     data_type *U = (data_type *)malloc(sizeof(data_type) * m*n);
     data_type *V = (data_type *)malloc(sizeof(data_type) * m*n);
     data_type *S = (data_type *)malloc(sizeof(data_type) * m*n);
 
-    int rank = 2;
+    int rank = 32;
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_A), sizeof(data_type) * A.size()));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_AO), sizeof(data_type) * A.size()));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_U), sizeof(data_type) * ldu * m));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_V), sizeof(data_type) * ldv * n));
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_S), sizeof(data_type) * min_mn));
@@ -85,7 +87,8 @@ int main(int argc, char *argv[]) {
     cudaMemcpy( U,d_U, sizeof(data_type) * M*N, cudaMemcpyDeviceToHost);
     cudaMemcpy( V,d_V, sizeof(data_type) * M*N, cudaMemcpyDeviceToHost);
     cudaMemcpy( S,d_S, sizeof(data_type) * min_mn, cudaMemcpyDeviceToHost);
-    
+
+
     printf("\n");
     print_Matrix(U,M,N);
     printf("\n");
@@ -102,10 +105,14 @@ int main(int argc, char *argv[]) {
     cublasHandle_t handle;
     cublasCreate(&handle);
     float alpha = 1.0, beta = 0.0;
-    cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, rank,
-                &alpha, d_U, m, d_V, n, &beta, d_U, n);    
 
-    cudaMemcpy( U,d_U, sizeof(data_type) * M*N, cudaMemcpyDeviceToHost);
+
+
+    strans(d_U,d_U,rank,m);
+    cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_T, m, n, rank,
+                &alpha, d_U, m, d_V, n, &beta, d_AO, n);    
+
+    cudaMemcpy( U,d_AO, sizeof(data_type) * M*N, cudaMemcpyDeviceToHost);
     printf("\n");
     print_Matrix(U,M,N);
 

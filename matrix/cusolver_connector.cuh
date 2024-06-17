@@ -99,15 +99,16 @@ void cusolver_rsvd_LR(
     const int64_t iters = 0;
     const int64_t p = std::min(2, static_cast<int>(n - rank));
 
-    size_t workspaceInBytesOnDevice = 0; /* size of workspace */
+    size_t workspaceInBytesOnDevice = 1e5; /* size of workspace */
     void *d_work = nullptr;              /* device workspace for getrf */
-    size_t workspaceInBytesOnHost = 0;   /* size of workspace */
+    size_t workspaceInBytesOnHost = 1e5;   /* size of workspace */
     void *h_work = nullptr;              /* host workspace for getrf */
     int *d_info = nullptr;
+    int *h_info = nullptr;
 
     data_type *d_S;
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_info), sizeof(int))); 
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_S), sizeof(data_type)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_S), min_mn*sizeof(data_type)));
 
 
 
@@ -139,5 +140,7 @@ void cusolver_rsvd_LR(
         traits<data_type>::cuda_data_type, d_U, ldu, traits<data_type>::cuda_data_type, d_V, ldv,
         traits<data_type>::cuda_data_type, d_work, workspaceInBytesOnDevice, h_work, workspaceInBytesOnHost, d_info));
 
+
     diag_matmul(d_V, d_S, rank, n);
+
 }

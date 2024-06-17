@@ -47,7 +47,7 @@ target_link_libraries(${RCXIGEMM_BIN_NAME}
     matrix
 )
 
-target_link_libraries(${RCXIGEMM_BIN_NAME} -lcublas -lcurand -lcudart -lcusolver)
+target_link_libraries(${RCXIGEMM_BIN_NAME} -lcublas -lcurand -lcudart -lcusolver -fopenmp)
 
 
 

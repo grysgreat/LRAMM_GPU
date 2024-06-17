@@ -455,9 +455,9 @@ void I8trans(int8_t *odata, int8_t *idata,int rows,int cols){
 
 void diag_matmul(float* A, float* x, int row, int col){
     int size = row*col;
-    int threadsPerBlock = 1024;
+    int threadsPerBlock = 256;
     int blocksPerGrid = (size + threadsPerBlock - 1) / threadsPerBlock;
-    _diag_matmul<<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(int)>>>(A, x, row,col);
+    _diag_matmul<<<blocksPerGrid, threadsPerBlock>>>(A, x, row,col);
      
     
 }
