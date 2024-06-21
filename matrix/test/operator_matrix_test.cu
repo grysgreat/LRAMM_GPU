@@ -12,7 +12,8 @@ const int BLOCK_ROWS = 8;
 const int NUM_REPS = 100;
 
 void scopy_strans_acc_test(){
-    int N=128,M=128,K=128;
+    int num = 1024;
+    int N=num,M=num,K=num;
 
 
     float *matrixA = (float *)malloc(sizeof(float) * M*K);
@@ -42,9 +43,9 @@ void scopy_strans_acc_test(){
     
 
 
-    strans(matrixB_dev,matrixB_dev,M,N);
+    strans(matrixTmp_dev,matrixB_dev,M,N);
 
-    cudaMemcpy(matrixTmp, matrixB_dev, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+    cudaMemcpy(matrixTmp, matrixTmp_dev, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
     
 
     int flag = 0;

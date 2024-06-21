@@ -142,5 +142,5 @@ void cusolver_rsvd_LR(
 
 
     diag_matmul(d_V, d_S, rank, n);
-
+    cudaDeviceSynchronize();
 }

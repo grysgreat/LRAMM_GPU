@@ -24,7 +24,7 @@ void generate_matrix(T* matrix,int rows,int cols,char type ){
         #pragma omp parallel for num_threads(max_omp_thread)
         for(int i=0;i<rows;i++){
             for(int j=0;j<cols;j++){
-                std::normal_distribution<double> dis(10.0, 3.0); // 定义随机数分布器对象dis，期望为0.0，标准差为1.0的正态分布
+                std::normal_distribution<double> dis(0, 1); // 定义随机数分布器对象dis，期望为0.0，标准差为1.0的正态分布
                 matrix[i*cols+j] = dis(gen);
             }
         }        
@@ -32,7 +32,7 @@ void generate_matrix(T* matrix,int rows,int cols,char type ){
         #pragma omp parallel for num_threads(max_omp_thread)
         for(int i=0;i<rows;i++){
             for(int j=0;j<cols;j++){
-                std::exponential_distribution<double> dis(1.0/(1.0/4.0)); // 定义随机数分布器对象dis，期望为0.0，标准差为1.0的正态分布
+                std::exponential_distribution<double> dis((1.0/4.0)); // 定义随机数分布器对象dis，期望为0.0，标准差为1.0的正态分布
                 matrix[i*cols+j] = dis(gen);
             }
         }        
@@ -40,8 +40,22 @@ void generate_matrix(T* matrix,int rows,int cols,char type ){
         #pragma omp parallel for num_threads(max_omp_thread)
         for(int i=0;i<rows;i++){
             for(int j=0;j<cols;j++){
-                std::chi_squared_distribution<> dis(2);
+                std::chi_squared_distribution<> dis(1);
                 matrix[i*cols+j] = dis(gen);
+            }
+        }        
+    } else if(type == 'l'){
+        #pragma omp parallel for num_threads(max_omp_thread)
+        for(int i=0;i<rows;i++){
+            for(int j=0;j<cols;j++){
+                if(i<8)matrix[i*cols+j] = dis(gen);
+            }
+        }        
+    } else if(type == 'r'){
+        #pragma omp parallel for num_threads(max_omp_thread)
+        for(int i=0;i<rows;i++){
+            for(int j=0;j<cols;j++){
+                if(j<1)matrix[i*cols+j] = dis(gen);
             }
         }        
     }
