@@ -125,6 +125,7 @@ void cusolver_rsvd_LR(
         traits<data_type>::cuda_data_type, d_U, ldu, traits<data_type>::cuda_data_type, d_V, ldv,
         traits<data_type>::cuda_data_type, &workspaceInBytesOnDevice, &workspaceInBytesOnHost));
 
+    //printf("dwork = %lld\n",workspaceInBytesOnDevice);
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void **>(&d_work), workspaceInBytesOnDevice));
     if (0 < workspaceInBytesOnHost) {
         h_work = reinterpret_cast<void *>(malloc(workspaceInBytesOnHost));
@@ -141,6 +142,10 @@ void cusolver_rsvd_LR(
         traits<data_type>::cuda_data_type, d_work, workspaceInBytesOnDevice, h_work, workspaceInBytesOnHost, d_info));
 
 
+    cudaFree(d_work);
+    cudaFree(d_info);
     diag_matmul(d_V, d_S, rank, n);
-    cudaDeviceSynchronize();
+
+
+
 }

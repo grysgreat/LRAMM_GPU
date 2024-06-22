@@ -170,7 +170,7 @@ void lrxigemm_acc(){
 }
 
 void lrxigemm_perf(){
-    int max = 8192;
+    int max = 8192;//1024*16;
     float *matrixA = (float *)malloc(sizeof(float) * max*max);
     float *matrixB = (float *)malloc(sizeof(float) * max*max);
     float *matrixC = (float *)malloc(sizeof(float) * max*max);
@@ -196,11 +196,19 @@ void lrxigemm_perf(){
     CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
     CUBLAS_CHECK(cublasCreate(&cublasH));
 
+    lrxigemm_speed<float,8>(A_d,B_d,C_d,M,K,K,N,2, &cusolverH, &cublasH);
+    cudaDeviceSynchronize();
+
+
+    int iter = 1;
     auto start = std::chrono::high_resolution_clock::now();
-    lrxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,2, &cusolverH, &cublasH);
+    for(int i=0;i<iter;i++) {
+        lrxigemm_speed<float,8>(A_d,B_d,C_d,M,K,K,N,2, &cusolverH, &cublasH);
+        cudaDeviceSynchronize();
+    }
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> diff = end - start;
-    double time  = diff.count();
+    double time  = diff.count()/((double)iter);
     std::cout<< std::fixed << std::setprecision(6) << time << "\n";
  
 
@@ -210,8 +218,9 @@ void lrxigemm_perf(){
 }
 
 int main(){
-    // lrxigemm_perf();
+    lrxigemm_perf();
     // xigemm_perf();
     
-    lrxigemm_acc();
+
+    //lrxigemm_acc();
 }
