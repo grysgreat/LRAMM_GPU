@@ -1,0 +1,12 @@
+0 - N - (colsA) / 1 - (T,T) - (rank,colsB)
+0 - N - (colsA) / 1 - (T,T) - (colsA,colsB)
+0 - N - (colsA) / 1 - (T,T) - (rank,rank)
+0 - N - (colsA) / 1 - (T,T) - (colsA,rank)
+0 - N - (colsA) / 1 - (N,T) - (rank,rank)
+0 - N - (colsA) / 1 - (N,T) - (rowsA,rank)
+0 - N - (colsA) / 1 - (N,T) - (rowsA,colsB) right!
+0 - N - (colsA) / 1 - (N,T) - (rank,colsB) 
+
+0 - N - (rank) / 1 - (T,T) - (rank,colsB) ill (rank)
+
+0 - N - (rank) / 1 - (T,T) - (rank,colsB)
