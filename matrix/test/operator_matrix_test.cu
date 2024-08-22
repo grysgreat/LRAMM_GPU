@@ -37,9 +37,9 @@ void scopy_strans_acc_test(){
     //二维线程网格，128×128
     dim3 grid((M)/block.x);
 
-    scopy<<<grid,block>>>(matrixA_dev,matrixB_dev,M,N);
+    // scopy<<<grid,block>>>(matrixA_dev,matrixB_dev,M,N);
 
-    cudaMemcpy(matrixB, matrixB_dev, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+    // cudaMemcpy(matrixB, matrixB_dev, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
     
 
 
@@ -97,9 +97,9 @@ void scopy_strans_perf_test(){
 
     auto start = std::chrono::high_resolution_clock::now();
 
-    scopy<<<grid,block>>>(matrixA_dev,matrixB_dev,M,N);
+    // scopy<<<grid,block>>>(matrixA_dev,matrixB_dev,M,N);
 
-    cudaDeviceSynchronize();
+    // cudaDeviceSynchronize();
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff = end - start;
     int time  = diff.count()*1000*1000;
@@ -216,8 +216,8 @@ void quant_perf_test(){
 }
 
 void quant_acc_test(){
-    int num = 32;
-    int N=num,M=num,K=num;
+    int num = 1024;
+    int N=1024,M=512,K=512;
 
     float *matrixA = (float *)malloc(sizeof(float) * M*N);
     int8_t *matrixA8 = (int8_t *)malloc(sizeof(int8_t) * M*N);
@@ -229,7 +229,7 @@ void quant_acc_test(){
     const int max_int = (1<<(8-1)) - 1;
     float lambdaAnew = (float)max_int/max_mAR;
 
-    printMatrix(matrixA,M,N);
+    // printMatrix(matrixA,M,N);
     std::cout<<std::endl;
     float *matrixA_dev;
     float *matrixB_dev;
@@ -251,8 +251,8 @@ void quant_acc_test(){
 
     cudaMemcpy( matrixA8_dev_ans,matrixA8_dev, sizeof(int8_t) * M*N, cudaMemcpyDeviceToHost);
 
-    for (size_t i = 0; i < M; ++i) { // 遍历行
-        for (size_t j = 0; j < N; ++j) { // 遍历列
+    for (size_t i = 0; i < 32; ++i) { // 遍历行
+        for (size_t j = 0; j < 32; ++j) { // 遍历列
             // 将int8_t转换为int以打印
             std::cout << static_cast<int>(matrixA8_dev_ans[i*N+j]) << " ";
         }
@@ -262,7 +262,7 @@ void quant_acc_test(){
     dequantitize_int8(matrixA8_dev,matrixA_dev,M,N,lambdaAnew);
     cudaMemcpy( matrixB,matrixA_dev, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
 
-    printMatrix(matrixB,M,N);
+    // printMatrix(matrixB,M,N);
 }
 
 // this function calls the CUDA kernel
@@ -426,7 +426,7 @@ int max_vec_perf_test(){
 
 }
 
-int max_vec_acc_test(){
+void max_vec_acc_test(){
     int num = 8192;
     int N=num,M=num,K=num;
 
@@ -482,7 +482,7 @@ int max_vec_acc_test(){
     for(int i=0;i<N;i++){
         if(vec_col[i]!=vec_col_gold[i]){
             printf("col error, gold = %f, cuda = %f\n",vec_col_gold[i],vec_row[i]);
-            return 0;
+
         } 
     }
 
@@ -496,14 +496,14 @@ int main(){
     //max_min_abs_test();
 
 
-     scopy_strans_acc_test();
+    //  scopy_strans_acc_test();
 
     //scopy_strans_perf_test();
 
     //quant_perf_test();
     
-    //quant_acc_test();
-
+    // quant_acc_test();
+    max_vec_acc_test();
     return 0;
     // max_vec_perf_test();
     // max_vec_acc_test();

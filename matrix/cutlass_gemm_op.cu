@@ -4,7 +4,7 @@
 void cut_gemm(input_t *A, input_t* B, output_t* C,int rowA,int colA, int rowB,int colB){
 
   // Create a tuple of problem size for matrix multiplication
-  cutlass::gemm::GemmCoord problem_size(rowA, rowB, colA);
+  cutlass::gemm::GemmCoord problem_size(rowA, colB, rowB);
 
 
   // Initialize alpha and beta for dot product computation
@@ -35,9 +35,6 @@ void cut_gemm(input_t *A, input_t* B, output_t* C,int rowA,int colA, int rowB,in
   CUTLASS_CHECK(status);
 
   gemm_op();
-
-    
-
 
     // for (int i = 0; i < 10; ++i) {
     //     for (int j = 0; j < 10; ++j) {

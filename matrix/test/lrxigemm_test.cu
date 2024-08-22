@@ -51,6 +51,8 @@ T get_Ferror(T matrix_ref[],T matrix_cmp[],int rows,int cols){
 
 }
 
+
+
 void xigemm_acc(){
     int max = 1024;
     float *matrixA = (float *)malloc(sizeof(float) * max*max);
@@ -126,6 +128,7 @@ void xigemm_perf(){
     return ;
 }
 
+
 void lrxigemm_acc(){
     int max = 1024;
     float *matrixA = (float *)malloc(sizeof(float) * max*max);
@@ -136,8 +139,8 @@ void lrxigemm_acc(){
 
     int M=max , N=max, K = max;
 
-    generate_matrix<float>(matrixA,M,K,'k');
-    generate_matrix<float>(matrixB,K,N,'k');    
+    generate_matrix<float>(matrixA,M,K,'u');
+    generate_matrix<float>(matrixB,K,N,'u');    
 
     xgemm(matrixA,matrixB,matrixC,M,K,K,N);
 
@@ -169,6 +172,58 @@ void lrxigemm_acc(){
     return ;
 }
 
+
+void lrxigemm_acc2(){
+    int max = 8192;//1024*16;
+    float *matrixA = (float *)malloc(sizeof(float) * max*max);
+    float *matrixB = (float *)malloc(sizeof(float) * max*max);
+    float *matrixC = (float *)malloc(sizeof(float) * max*max);
+    float *matrixCQ = (float *)malloc(sizeof(float) * max*max);
+    float *matrixR = (float *)malloc(sizeof(float) * max*max);
+
+    int M = 1024;
+    int N = 1024;
+    int K = 1024;
+
+    generate_matrix<float>(matrixA,M,K,'u');
+    generate_matrix<float>(matrixB,K,N,'u');    
+
+    xgemm(matrixA,matrixB,matrixC,M,K,K,N);
+
+    float *A_d, *B_d, *C_d;
+    cudaMalloc((float **)&A_d, sizeof(float) * M*K);
+    cudaMalloc((float **)&B_d, sizeof(float) * K*N);
+    cudaMalloc((float **)&C_d, sizeof(float) * M*N);
+    cudaMemcpy(A_d, matrixA, sizeof(float) * M*K, cudaMemcpyHostToDevice);
+    cudaMemcpy(B_d, matrixB, sizeof(float) * K*N, cudaMemcpyHostToDevice);
+
+    xigemm<float,8>(A_d,B_d,C_d,M,K,K,N);
+    cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
+    cudaDeviceSynchronize();
+    float R2 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
+    printf("%.7f\n",R2);
+
+    for(int i=0;i<100;i++){
+        printf("%f,",matrixCQ[i]);
+    }
+    printf("\n");
+
+    cublasHandle_t cublasH = NULL;
+    cusolverDnHandle_t cusolverH = NULL;
+    CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
+    CUBLAS_CHECK(cublasCreate(&cublasH));
+
+    lrxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,10, &cusolverH, &cublasH);
+    cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
+    cudaDeviceSynchronize();
+    float R3 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
+
+    printf("%.7f\n",R3);
+
+    return ;
+}
+
+
 void lrxigemm_perf(){
     int max = 8192;//1024*16;
     float *matrixA = (float *)malloc(sizeof(float) * max*max);
@@ -178,8 +233,8 @@ void lrxigemm_perf(){
     float *matrixR = (float *)malloc(sizeof(float) * max*max);
 
     int M=max , N=max, K = max;
-    generate_matrix<float>(matrixA,M,K,'l');
-    generate_matrix<float>(matrixB,K,N,'r');    
+    generate_matrix<float>(matrixA,M,K,'n');
+    generate_matrix<float>(matrixB,K,N,'n');    
 
     float* d_work;
     cudaMalloc((float **)&d_work, sizeof(float) * 10);
@@ -218,9 +273,10 @@ void lrxigemm_perf(){
 }
 
 int main(){
-    lrxigemm_perf();
+    // lrxigemm_perf();
     // xigemm_perf();
     
+    // //lrxigemm_acc2();
 
-    //lrxigemm_acc();
+    // skxigemm_acc();
 }
