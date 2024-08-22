@@ -201,12 +201,12 @@ void precision_test(){
         // {2048,2048,2048,20},
         // {2048,2048,2048,10},
 
-        {2048,2048,2048,10,'n'},
-        {2048,2048,2048,10,'u'},
-        {2048,2048,2048,10,'s'},
-        {2048,2048,2048,10,'e'},
-        {2048,2048,2048,10,'k'},
-        {2048,2048,2048,10,'p'},
+        {4096,4096,4096,10,'n'},
+        {4096,4096,4096,10,'u'},
+        {4096,4096,4096,10,'s'},
+        {4096,4096,4096,10,'e'},
+        {4096,4096,4096,10,'k'},
+        {4096,4096,4096,10,'p'},
 
         // {128,128,128,10,'k'},
         // {256,256,256,10,'k'},
@@ -330,10 +330,10 @@ void performance_test(){
         // {2048,2048,2048,20},
         // {2048,2048,2048,10},
         // {2048,2048,2048,1},
-        {16384,16384,16384,1},
-        {2048,2048,2048,1},
+        // {16384,16384,16384,1},
+        // {2048,2048,2048,1},
         // {4096,4096,4096,1},
-        // {8192,8192,8192,1},
+        {4096*4,4096*4,4096*4,1},
         // {16384,16384,16384,1},
 
 
@@ -370,7 +370,7 @@ void performance_test(){
     CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
     CUBLAS_CHECK(cublasCreate(&cublasH));
 
-    int max = 16384;
+    int max = 32678;
     float *matrixA = (float *)malloc(sizeof(float) * max*max);
     float *matrixB = (float *)malloc(sizeof(float) * max*max);
     float *matrixC = (float *)malloc(sizeof(float) * max*max);
@@ -427,7 +427,7 @@ void performance_test(){
 
         {
             auto start = std::chrono::high_resolution_clock::now();
-            xigemm<float,8>(A_d,B_d,C_d,M,K,K,N);
+            //xigemm<float,8>(A_d,B_d,C_d,M,K,K,N);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double, std::milli> diff = end - start;
             double time  = diff.count();
@@ -435,13 +435,14 @@ void performance_test(){
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
-            // lrxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,10, &cusolverH, &cublasH);
+            //lrxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,10, &cusolverH, &cublasH);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double, std::milli> diff = end - start;
             double time  = diff.count();
             printf("%.7lf\t",time);
         }
         {
+            skxigemm<float,8>(A_d,B_d,C_d,128,128,128,128,1, &cusolverH, &cublasH);
             auto start = std::chrono::high_resolution_clock::now();
             skxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
             auto end = std::chrono::high_resolution_clock::now();
@@ -457,6 +458,6 @@ int main(){
     //skxigemm_acc();
     //curand_test();
     //sketch_acc_test();
-    //performance_test();
-    precision_test();
+    performance_test();
+    //precision_test();
 }

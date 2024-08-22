@@ -111,6 +111,7 @@ void lrxigemm(
     cudaFree(AI_d);
     cudaFree(BI_d);
     cudaFree(CI_d);
+    cudaFree(Itmp_d);
 
     cusolver_rsvd_LR(rowsA, colsA, AR, AL_d, AR_d, rank, &cusolverH);
     cusolver_rsvd_LR(rowsB, colsB, BR, BL_d, BR_d, rank, &cusolverH);
@@ -520,13 +521,13 @@ void skxigemm(
     T alpha = -1.0;
     cublas_saxpy(PA_d, AR ,alpha, rowsA*colsA, cublasH,stream);
     cublas_saxpy(PB_d, BR ,alpha, rowsB*colsB, cublasH,stream);
-    T *AL_d, *AR_d, *BL_d, *BR_d, *tmp_d, *tmp_d2;
-    cudaMalloc((T **)&AL_d, sizeof(T) * rowsA * colsA);
-    cudaMalloc((T **)&AR_d, sizeof(T) * rowsA * colsA);
-    cudaMalloc((T **)&BL_d, sizeof(T) * rowsB * colsB);
-    cudaMalloc((T **)&BR_d, sizeof(T) * rowsB * colsB);
-    cudaMalloc((T **)&tmp_d, sizeof(T) * rowsA * colsB);
-    cudaMalloc((T **)&tmp_d2, sizeof(T) * rowsA * colsB);
+    T *AL_d, *AR_d, *BL_d, *BR_d, *tmp_d;
+    int maxlen = max(max(rowsB,max(rowsA,colsA)),colsB);
+    cudaMalloc((T **)&AL_d, sizeof(T) * rowsA );
+    cudaMalloc((T **)&AR_d, sizeof(T) * colsA);
+    cudaMalloc((T **)&BL_d, sizeof(T) * rowsB);
+    cudaMalloc((T **)&BR_d, sizeof(T) * colsB);
+    cudaMalloc((T **)&tmp_d, sizeof(T) * maxlen);
 
     cudaFree(AI_d);
     cudaFree(BI_d);

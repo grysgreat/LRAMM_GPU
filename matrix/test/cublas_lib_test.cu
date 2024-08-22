@@ -130,6 +130,84 @@ void gemm_acc_test(){
 
 }
 
+
+void gemm_acc_test2(){
+    cublasHandle_t cublasH = NULL;
+    CUBLAS_CHECK(cublasCreate(&cublasH));
+    // 定义数组的大小
+    int M=16,N=14,K=2;
+    // 创建一个使用float类型的数组
+    std::vector<float> int4b_arrayA(M*K);
+    std::vector<float> int4b_arrayB(K*N);
+    std::vector<float> int32b_arrayC(M*N);
+
+
+    // 初始化数组
+    for (int i = 0; i < M; ++i) {
+        for(int j=0;j<K;j++){
+            // 将每个元素初始化为它的索引值，注意这里只是示例，实际值可能需要根据量化规则来确定
+            int4b_arrayA[i*K+j] = static_cast<float>(i*K+j);
+        }
+    }
+    for (int i = 0; i < K; ++i) {
+        for(int j=0;j<N;j++){
+            // 将每个元素初始化为它的索引值，注意这里只是示例，实际值可能需要根据量化规则来确定
+            int4b_arrayB[i*N+j] = static_cast<float>(j);
+        }
+    }
+
+
+    for (int i = 0; i < M; ++i) {
+        for(int j=0;j<K;j++){
+            printf("%d,",static_cast<int>(int4b_arrayA[i*K+j]));
+        }
+        printf("\n");
+    }
+    printf("\n");
+    for (int i = 0; i < K; ++i) {
+        for(int j=0;j<N;j++){
+            printf("%d,",static_cast<int>(int4b_arrayB[i*N+j]));
+        }
+        printf("\n");
+    }
+    printf("\n");
+
+    float* d_A;
+    float* d_B;
+    float* d_C;
+    float* d_C_TMP;
+    cudaMalloc((void**)&d_A, sizeof(float) * M*K);
+    cudaMalloc((void**)&d_B, sizeof(float) * K*N);
+    cudaMalloc((void**)&d_C, sizeof(float) * M*N);
+    cudaMalloc((void**)&d_C_TMP, sizeof(float) * M*N);
+    cudaMemcpy(d_A, int4b_arrayA.data(), sizeof(float) * M*K, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, int4b_arrayB.data(), sizeof(float) * K*N, cudaMemcpyHostToDevice);
+
+    float  beta = 0.0, alpha = 1.0;
+    // cublasSgemm(cublasH, CUBLAS_OP_T, CUBLAS_OP_T, M, N, K,
+    //             &alpha, d_A, M, d_B, M, &beta, d_C, M);  
+
+    // cublasSgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, N, M, K,
+    //             &alpha, d_B, N, d_A, K, &beta, d_C, N);  
+
+
+    cublasSgemm(cublasH, CUBLAS_OP_T, CUBLAS_OP_N, M, N, K, &alpha, d_A, K, d_B, K, &beta, d_C_TMP, M);
+    cublasSgeam(cublasH, CUBLAS_OP_T, CUBLAS_OP_N, N, M, &alpha, d_C_TMP, M, &beta, d_C, N, d_C, N);
+    cudaDeviceSynchronize();
+
+
+    cudaMemcpy( int32b_arrayC.data(),d_C, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+  
+    for (int i = 0; i < M; ++i) {
+        for(int j=0;j<N;j++){
+            printf("%d,",static_cast<int>(int32b_arrayC[i*N+j]));
+        }
+        printf("\n");
+    }
+
+}
+
+
 void gemv_acc_test(){
     cublasHandle_t cublasH = NULL;
     CUBLAS_CHECK(cublasCreate(&cublasH));
@@ -202,5 +280,6 @@ int main(){
     //axpy_perf_test();
     //gemv_acc_test();
       gemm_acc_test();
+      //gemm_acc_test2();
     return 0;
 }
