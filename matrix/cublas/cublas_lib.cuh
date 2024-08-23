@@ -80,4 +80,12 @@ void cublas_strans(cublasHandle_t *cublashandler, float *d_in, float *d_out, int
     return ;
 }
 
+void cublas_scopy(cublasHandle_t *cublashandler, float *d_in, float *d_out, int size){
+    float alpha = 1.0;
+    float beta = 0.0;
+    cublasScopy(*cublashandler, size, d_in, 1, d_out, 1);   
+    cudaDeviceSynchronize();
+    return ;
+}
+
 #endif

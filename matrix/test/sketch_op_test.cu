@@ -331,9 +331,12 @@ void performance_test(){
         // {2048,2048,2048,10},
         // {2048,2048,2048,1},
         // {16384,16384,16384,1},
-        // {2048,2048,2048,1},
-        // {4096,4096,4096,1},
+        {2048,2048,2048,1},
+        {4096,4096,4096,1},
+        {4096*2,4096*2,4096*2,1},
+        {4096*3,4096*3,4096*3,1},
         {4096*4,4096*4,4096*4,1},
+        {4096*5,4096*5,4096*5,1},
         // {16384,16384,16384,1},
 
 
@@ -370,34 +373,29 @@ void performance_test(){
     CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
     CUBLAS_CHECK(cublasCreate(&cublasH));
 
-    int max = 32678;
+    int max = 4096*5;
     float *matrixA = (float *)malloc(sizeof(float) * max*max);
     float *matrixB = (float *)malloc(sizeof(float) * max*max);
     float *matrixC = (float *)malloc(sizeof(float) * max*max);
     float *matrixCQ = (float *)malloc(sizeof(float) * max*max);
     float *matrixR = (float *)malloc(sizeof(float) * max*max);
 
+    char * work;
+    cudaMalloc((char **)&work, sizeof(float) * (max*max*4+max*5));
+
     std::cout<<"M\tN\tK\trank\tSGEMM\t\torigin\t\tLrxigemm\tsketch\n";
     const int digit = 8;
     
     float *A_d, *B_d, *C_d;
-    for(int i=0;i<5;i++){
+    generate_matrix<float>(matrixA,max,max,'u');
+    generate_matrix<float>(matrixB,max,max,'u');       
+    for(int i=0;i<6;i++){
         
 
         int N=test_para[i][0],M=test_para[i][1],K=test_para[i][2];
         int rank =test_para[i][3];
 
         float alpha = 1.0, beta = 0.0;
-        char type = 'u';
-        if(i!=0) {
-            if(N!=test_para[i-1][0]||M!=test_para[i-1][1]||K!=test_para[i-1][2]||type!=test_para[i-1][4]){
-                generate_matrix<float>(matrixA,M,K,type);
-                generate_matrix<float>(matrixB,K,N,type);
-            }
-        } else {
-            generate_matrix<float>(matrixA,M,K,type);
-            generate_matrix<float>(matrixB,K,N,type);            
-        } 
         if(M==0) return;
         cudaMalloc((float **)&A_d, sizeof(float) * M*K);
         cudaMalloc((float **)&B_d, sizeof(float) * K*N);
@@ -442,14 +440,18 @@ void performance_test(){
             printf("%.7lf\t",time);
         }
         {
-            skxigemm<float,8>(A_d,B_d,C_d,128,128,128,128,1, &cusolverH, &cublasH);
+            skxigemm_mem<float,8>(A_d,B_d,C_d,work,128,128,128,128,1, &cusolverH, &cublasH);
+            //skxigemm<float,8>(A_d,B_d,C_d,128,128,128,128,1, &cusolverH, &cublasH);
             auto start = std::chrono::high_resolution_clock::now();
-            skxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
+            //skxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
+            //skxigemm_mem<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cusolverH, &cublasH);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double, std::milli> diff = end - start;   
             double time  = diff.count();
             printf("%.7lf\n",time);
         }
+        cudaFree(A_d);cudaFree(B_d);cudaFree(C_d);
+
     }
     return;        
 }
@@ -458,6 +460,6 @@ int main(){
     //skxigemm_acc();
     //curand_test();
     //sketch_acc_test();
-    //performance_test();
-    precision_test();
+    performance_test();
+    //precision_test();
 }
