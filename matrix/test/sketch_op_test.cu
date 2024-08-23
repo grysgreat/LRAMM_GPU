@@ -113,7 +113,7 @@ void sketch_acc_test(){
     cudaMalloc((float **)&d_work, sizeof(float) * max_work_size);
 
     sketch_r1(
-        d_A,  d_B, d_C, M, N, &gen, &cublasH, d_work, c_work
+        d_A,  d_B, d_C, M, N, &gen, &cublasH
     );
     
 
@@ -427,7 +427,7 @@ void performance_test(){
 
         {
             auto start = std::chrono::high_resolution_clock::now();
-            //xigemm<float,8>(A_d,B_d,C_d,M,K,K,N);
+            xigemm<float,8>(A_d,B_d,C_d,M,K,K,N);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double, std::milli> diff = end - start;
             double time  = diff.count();
@@ -458,6 +458,6 @@ int main(){
     //skxigemm_acc();
     //curand_test();
     //sketch_acc_test();
-    performance_test();
-    //precision_test();
+    //performance_test();
+    precision_test();
 }

@@ -470,14 +470,7 @@ void skxigemm(
 
 
     /*Step 1. prepare work space*/
-    int threadsPerBlock = 1024; 
-    int max_work_size = (max(colsA*rowsA, colsB*rowsB)+threadsPerBlock-1)/threadsPerBlock;
-
-    T* c_work = (T *)malloc(sizeof(T) * max_work_size);
-    T* d_work;
-    cudaMalloc((T **)&d_work, sizeof(T) * max_work_size);
-
-    T  *PA_d, *PB_d, *AR, *BR;
+    T  *PA_d, *PB_d, *AR, *BR, *B_tmp;
     lowPtype *AI_d, *BI_d, *Itmp_d;
     int32_t *CI_d;
 
@@ -485,6 +478,8 @@ void skxigemm(
     cudaMalloc((T **)&PB_d, sizeof(T) * colsB*rowsB);
     cudaMalloc((T **)&AR, sizeof(T) * colsA*rowsA);
     cudaMalloc((T **)&BR, sizeof(T) * colsB*rowsB);
+    cudaMalloc((T **)&B_tmp, sizeof(T) * colsB*rowsB);
+
 
     cudaMalloc((lowPtype **)&AI_d, sizeof(lowPtype) * colsA*rowsA);
     cudaMalloc((lowPtype **)&BI_d, sizeof(lowPtype) * colsB*rowsB);
@@ -496,10 +491,11 @@ void skxigemm(
     cudaMemcpy(BR, B_d, colsB*rowsB * sizeof(T), cudaMemcpyDeviceToDevice);
     cudaDeviceSynchronize();
 
+
     /*Step 2. Perform a direct quantization algorithm*/
     const int max_int = (1<<(digit-1)) - 1;
-    T max_mA = max_abs(A_d, d_work, c_work, colsA*rowsA);
-    T max_mB = max_abs(B_d, d_work, c_work, colsB*rowsB);
+    T max_mA = cublas_absmax(&cublasH, A_d, colsA*rowsA);//max_mA2;// max_abs(A_d, d_work, c_work, colsA*rowsA);
+    T max_mB = cublas_absmax(&cublasH, B_d, colsB*rowsB);//max_abs(B_d, d_work, c_work, colsB*rowsB);
     T lambdaA = (T)max_int/max_mA;
     T lambdaB = (T)max_int/max_mB;
     T lambdaC = lambdaA*lambdaB;
@@ -509,6 +505,7 @@ void skxigemm(
     quantitize_int8(B_d, BI_d, rowsB, colsB, lambdaB);
 
     I8trans(Itmp_d,BI_d,rowsB,colsB);
+
     cut_gemm(AI_d, Itmp_d, CI_d, rowsA, colsA, rowsB, colsB);
 
     dequantitize_int32(CI_d, C_d, rowsA, colsB, lambdaC);
@@ -534,8 +531,8 @@ void skxigemm(
     cudaFree(CI_d);
 
     curandGenerator_t gen;
-    sketch_r1( AR, AL_d, AR_d,rowsA, colsA, &gen,cublashandler,d_work,c_work);
-    sketch_r1( BR, BL_d, BR_d,rowsB, colsB, &gen,cublashandler,d_work,c_work);
+    sketch_r1( AR, AL_d, AR_d,rowsA, colsA, &gen,cublashandler);
+    sketch_r1( BR, BL_d, BR_d,rowsB, colsB, &gen,cublashandler);
 
 
     float  beta = 0.0;

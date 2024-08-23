@@ -73,8 +73,7 @@
 
 void sketch_r1(
     float* A,  float* A_L,float* A_R, int rowsA, int colsA, 
-    curandGenerator_t *gen, cublasHandle_t *cublashandler, 
-    float* d_work,float* c_work
+    curandGenerator_t *gen, cublasHandle_t *cublashandler
 ) {
     float *Sketch;
     float *B;
@@ -115,17 +114,17 @@ void sketch_r1(
     }
 
     // //Construct a matrix Q 
-    float Sum_AS = get_Sum_sq2(A_Sketch, d_work, c_work, rowsA);
+   
+    float Sum_AS =  cublas_norm2(&cublasH, A_Sketch, rowsA);//get_Sum_sq2(A_Sketch, d_work, c_work, rowsA);
     float Sum_AS_d1 = ((float)1.0)/Sum_AS;
 
     s_axnoy(A_Sketch, Q, rowsA, Sum_AS_d1);
-
 
     // B = QT A
     cublasSgemv(cublasH, CUBLAS_OP_N, colsA, rowsA, &alpha, A, colsA, Q, 1, &beta, B, 1);  
     cudaDeviceSynchronize();
     // B = U S V, Sum_B = US(1*1); V��1*colA��
-    float Sum_B = get_Sum_sq2(B, d_work, c_work, colsA);
+    float Sum_B = cublas_norm2(&cublasH, B, colsA);//get_Sum_sq2(B, d_work, c_work, colsA);
     float Sum_B_d1 = ((float)1.0)/(float)Sum_B;
     s_axnoy(B, A_R, colsA, Sum_B_d1);
     s_axnoy(Q, A_L, rowsA, Sum_B);

@@ -51,4 +51,33 @@ void cublas_gemv_rowmajor_trans(
     cudaDeviceSynchronize();
 }
 
+float cublas_absmax(
+    cublasHandle_t *cublashandler, float *d_x, int size){
+    int index;float maxnum;
+    cublasIsamax(*cublashandler, size, d_x, 1, &index);
+    cudaDeviceSynchronize();
+    cudaMemcpy( &maxnum, &d_x[index-1], sizeof(float) , cudaMemcpyDeviceToHost);
+    cudaDeviceSynchronize();
+    return maxnum;
+}
+
+float cublas_norm2(cublasHandle_t *cublashandler, float *d_x, int size){
+    float res;
+    cublasSnrm2(*cublashandler, size, d_x, 1, &res);
+    return res;
+}
+
+void cublas_sscal(cublasHandle_t *cublashandler, float *d_x, int size,float alpha){
+    cublasSscal(*cublashandler, size, &alpha,d_x, 1);
+    return ;
+}
+
+void cublas_strans(cublasHandle_t *cublashandler, float *d_in, float *d_out, int row, int col){
+    float alpha = 1.0;
+    float beta = 0.0;
+    cublasSgeam(*cublashandler, CUBLAS_OP_T, CUBLAS_OP_N, col, row, &alpha, d_in, row, &beta, d_out, col, d_out, col);
+    cudaDeviceSynchronize();
+    return ;
+}
+
 #endif
