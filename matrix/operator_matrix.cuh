@@ -15,6 +15,8 @@ void strans(float *odata, float *idata,int rows,int cols);
 void quantitize_int8(float * matrix_in,int8_t * matrix_out,int nx,int ny,float lambda);
 
 void dequantitize_int8(int8_t * matrix_in,float * matrix_out,int nx,int ny,float lambda);
+void quantitize_getR_int8(float * matrix_in,int8_t * matrix_out, float * matrix_P, float * matrix_R, int nx,int ny,float lambda);
+
 
 void dequantitize_int32(int32_t * matrix_in,float * matrix_out,int nx,int ny,float lambda);
 

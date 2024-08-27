@@ -112,7 +112,7 @@ void sketch_acc_test(){
     float* d_work;
     cudaMalloc((float **)&d_work, sizeof(float) * max_work_size);
 
-    sketch_r1(
+    sketch_r1_re(
         d_A,  d_B, d_C, M, N, &gen, &cublasH
     );
     
@@ -250,7 +250,9 @@ void precision_test(){
 
     std::cout<<"M\tN\tK\ttype\trank\torigin\t\tLrxigemm\tsketch\n";
     const int digit = 8;
-    
+    char * work;
+    cudaMalloc((char **)&work, sizeof(float) * (max*max*8+max*5));
+
     float *A_d, *B_d, *C_d;
     for(int i=0;i<5;i++){
         
@@ -291,7 +293,7 @@ void precision_test(){
 
 
         {
-            xigemm<float,8>(A_d,B_d,C_d,M,K,K,N);
+            xigemm_mem<float,8>(A_d,B_d,C_d,work,M,K,K,N);
             cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
             float R2 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
@@ -310,7 +312,16 @@ void precision_test(){
             printf("%.7f\t",R3);
         }
         {
-            skxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
+            //skxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
+            skxigemm_mem<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cusolverH, &cublasH);
+            cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
+            cudaDeviceSynchronize();
+            float R3 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
+            printf("%.7f\t",R3);
+        }
+        {
+            //skxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
+            skxigemm_mem_fusion<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cusolverH, &cublasH);
             cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
             float R3 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
@@ -336,7 +347,7 @@ void performance_test(){
         {4096*2,4096*2,4096*2,1},
         {4096*3,4096*3,4096*3,1},
         {4096*4,4096*4,4096*4,1},
-        {4096*5,4096*5,4096*5,1},
+        // {4096*5,4096*5,4096*5,1},
         // {16384,16384,16384,1},
 
 
@@ -373,7 +384,7 @@ void performance_test(){
     CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
     CUBLAS_CHECK(cublasCreate(&cublasH));
 
-    int max = 4096*5;
+    int max = 4096*4;
     float *matrixA = (float *)malloc(sizeof(float) * max*max);
     float *matrixB = (float *)malloc(sizeof(float) * max*max);
     float *matrixC = (float *)malloc(sizeof(float) * max*max);
@@ -381,7 +392,7 @@ void performance_test(){
     float *matrixR = (float *)malloc(sizeof(float) * max*max);
 
     char * work;
-    cudaMalloc((char **)&work, sizeof(float) * (max*max*4+max*5));
+    cudaMalloc((char **)&work, sizeof(float) * (max*max*6+max*5));
 
     std::cout<<"M\tN\tK\trank\tSGEMM\t\torigin\t\tLrxigemm\tsketch\n";
     const int digit = 8;
@@ -425,7 +436,7 @@ void performance_test(){
 
         {
             auto start = std::chrono::high_resolution_clock::now();
-            xigemm<float,8>(A_d,B_d,C_d,M,K,K,N);
+            xigemm_mem<float,8>(A_d,B_d,C_d,work,M,K,K,N);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double, std::milli> diff = end - start;
             double time  = diff.count();
@@ -444,7 +455,18 @@ void performance_test(){
             //skxigemm<float,8>(A_d,B_d,C_d,128,128,128,128,1, &cusolverH, &cublasH);
             auto start = std::chrono::high_resolution_clock::now();
             //skxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
-            //skxigemm_mem<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cusolverH, &cublasH);
+            skxigemm_mem<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cusolverH, &cublasH);
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> diff = end - start;   
+            double time  = diff.count();
+            printf("%.7lf\t",time);
+        }
+        {
+            skxigemm_mem_fusion<float,8>(A_d,B_d,C_d,work,128,128,128,128,1, &cusolverH, &cublasH);
+            //skxigemm<float,8>(A_d,B_d,C_d,128,128,128,128,1, &cusolverH, &cublasH);
+            auto start = std::chrono::high_resolution_clock::now();
+            //skxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
+            skxigemm_mem_fusion<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cusolverH, &cublasH);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double, std::milli> diff = end - start;   
             double time  = diff.count();
@@ -461,5 +483,5 @@ int main(){
     //curand_test();
     //sketch_acc_test();
     performance_test();
-    //precision_test();
+    precision_test();
 }

@@ -32,17 +32,8 @@ void cut_gemm(input_t *A, input_t* B, output_t* C,int rowA,int colA, int rowB,in
 
   // Initialize CUTLASS kernel with arguments and workspace pointer
   cutlass::Status status = gemm_op.initialize(arguments, workspace.get());
-  CUTLASS_CHECK(status);
 
   gemm_op();
-
-    // for (int i = 0; i < 10; ++i) {
-    //     for (int j = 0; j < 10; ++j) {
-    //         // 访问并打印元素
-    //         std::cout << static_cast<int>(tensor_c.at({i, j})) << " ";
-    //     }
-    //     std::cout << std::endl; // 每行后换行
-    // }
 
 }
 

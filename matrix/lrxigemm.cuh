@@ -121,7 +121,7 @@ void lrxigemm(
     float  beta = 0.0;
     alpha = 1.0;
 
-    //下面是先算出残差部分的测试，目前第一步计算有问题
+    //下面�?先算出残�?部分的测试，�?前�??一步�?�算有问�?
 //begin full size correct
 
 
@@ -334,10 +334,62 @@ void xigemm(T *A_d, T *B_d, T *C_d, int rowsA, int colsA, int rowsB, int colsB) 
     dequantitize_int32(CI_d, C_d, rowsA, colsB, lambdaC);
     cudaDeviceSynchronize();
 
-    cudaFree(AI_d);cudaFree(BI_d);cudaFree(CI_d);cudaFree(Itmp_d);
+    cudaFree(AI_d);cudaFree(BI_d);cudaFree(CI_d);cudaFree(Itmp_d);cudaFree(d_work);
 }
 
 
+
+template <typename T,int digit>
+void xigemm_mem(T *A_d, T *B_d, T *C_d, char *work_dev, int rowsA, int colsA, int rowsB, int colsB) {
+
+    using lowPtype = int8_t;
+
+
+    /*Step 1. prepare work space*/
+    int threadsPerBlock = 1024; 
+    const int max_work_size = (max(colsA*rowsA, colsB*rowsB)+threadsPerBlock-1)/threadsPerBlock;
+
+    T* c_work = (T *)malloc(sizeof(T) * max_work_size);
+    T* d_work;
+    cudaMalloc((T **)&d_work, sizeof(T) * max_work_size);
+
+    lowPtype *AI_d, *BI_d, *Itmp_d;
+    int32_t *CI_d;
+
+
+    int maxRC1 = max(rowsA,rowsB);
+    int maxRC2 = max(colsA,colsB);
+
+    AI_d = (lowPtype *)work_dev;
+    BI_d = ((lowPtype *)(&work_dev[colsA*rowsA*sizeof(lowPtype)]));
+    Itmp_d = ((lowPtype *)(&work_dev[colsA*rowsA*sizeof(lowPtype)+colsB*rowsB*sizeof(lowPtype)]));
+    CI_d = ((int32_t *)(&work_dev[colsA*rowsA*sizeof(lowPtype)+2*colsB*rowsB*sizeof(lowPtype)]));
+
+
+    /*Step 2. Perform a direct quantization algorithm*/
+    const int max_int = (1<<(digit-1)) - 1;
+    T max_mA = max_abs(A_d, d_work, c_work, colsA*rowsA);
+    T max_mB = max_abs(B_d, d_work, c_work, colsB*rowsB);
+    cudaDeviceSynchronize();
+    // printf("max_mA = %.7f\n",max_mA);
+
+    T lambdaA = (T)max_int/max_mA;
+    T lambdaB = (T)max_int/max_mB;
+    T lambdaC = lambdaA*lambdaB;
+
+    quantitize_int8(A_d, AI_d, rowsA, colsA, lambdaA);
+    quantitize_int8(B_d, BI_d, rowsB, colsB, lambdaB);
+
+    I8trans(Itmp_d,BI_d,rowsB,colsB);
+    cut_gemm(AI_d, Itmp_d, CI_d, rowsA, colsA, rowsB, colsB);
+    cudaDeviceSynchronize();
+
+
+    dequantitize_int32(CI_d, C_d, rowsA, colsB, lambdaC);
+    cudaDeviceSynchronize();
+
+    cudaFree(d_work);
+}
 template <typename T,int digit>
 void rxigemm(
     T *A_d, T *B_d, T *C_d, 
@@ -578,10 +630,10 @@ void skxigemm_mem(
     dequantitize_int32(CI_d, C_d, rowsA, colsB, lambdaC);
 
 
-    PA_d = (T *)work_dev;
-    AR = ((T *)(&work_dev[colsA*rowsA*sizeof(T)]));
-    PB_d = ((T *)(&work_dev[2*colsA*rowsA*sizeof(T)]));
-    BR = ((T *)(&work_dev[2*colsA*rowsA*sizeof(T)+ colsB*rowsB*sizeof(T)]));
+    PA_d = (T *)Itmp_d;
+    PB_d = (T *)(&PA_d[colsA*rowsA]);
+    AR = (T *)(&PB_d[colsB*rowsB]);
+    BR = (T *)(&AR[colsA*rowsA]);
 
 
     cublas_scopy(&cublasH,A_d,AR,colsA*rowsA);
@@ -602,23 +654,22 @@ void skxigemm_mem(
     int maxlen = max(max(rowsB,max(rowsA,colsA)),colsB);
 
     
-    AL_d = (T *)(&BR[colsB*rowsB]);
+    AL_d = (T *)(&work_dev[colsB*rowsB]);
     AR_d = (T *)(&AL_d[rowsA]);
     BL_d = (T *)(&AR_d[colsA]);
     BR_d = (T *)(&BL_d[rowsB]);
     tmp_d = (T *)(&BR_d[colsB]);
 
-
     curandGenerator_t gen;
-    sketch_r1( AR, AL_d, AR_d,rowsA, colsA, &gen,cublashandler);
-    sketch_r1( BR, BL_d, BR_d,rowsB, colsB, &gen,cublashandler);
+    sketch_r1_re( AR, AL_d, AR_d,rowsA, colsA, &gen,cublashandler);
+    sketch_r1_re( BR, BL_d, BR_d,rowsB, colsB, &gen,cublashandler);
 
     float  beta = 0.0;
     alpha = 1.0;
 
 //begin full size correct
     cublas_gemm_rowmajor(
-        &cublasH, AR_d, PB_d, tmp_d,  rank,  colsA,
+        &cublasH, AR_d, B_d, tmp_d,  rank,  colsA,
         rowsB,  colsB, alpha,  beta);
     beta = 1.0;
     cublas_gemm_rowmajor(
@@ -632,9 +683,93 @@ void skxigemm_mem(
     cublas_gemm_rowmajor(
         &cublasH, tmp_d, BR_d, C_d,  rowsA,  rank,
         rank,  colsB, alpha,  beta);
+
+    return;
+}
+
+
+
+template <typename T,int digit>
+void skxigemm_mem_fusion(
+    T *A_d, T *B_d, T *C_d, char *work_dev,
+    int rowsA, int colsA, int rowsB, int colsB, int rank, 
+    cusolverDnHandle_t *cusolverhandler, cublasHandle_t *cublashandler) {
+
+    rank = 1;
+    using lowPtype = int8_t;
+
+    /*Step 0. prepare Handle and stream*/
+    cublasHandle_t cublasH = *cublashandler;
+    cudaStream_t stream;
+    cudaStreamCreate(&stream);
+    cublasSetStream(cublasH, stream);
+
+    /*Step 1. prepare work space*/
+    T  *PA_d, *PB_d, *AR, *BR, *B_tmp;
+    lowPtype *AI_d, *BI_d, *Itmp_d;
+    int32_t *CI_d;
+    // here A_d and B_d represent RA and RB.
+    T alpha = -1.0;
+    T *AL_d, *AR_d, *BL_d, *BR_d, *tmp_d;
+    int maxlen = max(max(rowsB,max(rowsA,colsA)),colsB);
+
+    
+
+    AI_d = (lowPtype *)work_dev;
+    BI_d = ((lowPtype *)(&work_dev[colsA*rowsA*sizeof(lowPtype)]));
+    Itmp_d = ((lowPtype *)(&work_dev[colsA*rowsA*sizeof(lowPtype)+colsB*rowsB*sizeof(lowPtype)]));
+    CI_d = ((int32_t *)(&work_dev[colsA*rowsA*sizeof(lowPtype)+2*colsB*rowsB*sizeof(lowPtype)]));
+
+    PA_d = ((T *)(&work_dev[colsA*rowsA*sizeof(lowPtype)+2*colsB*rowsB*sizeof(lowPtype)+colsB*rowsA*sizeof(int32_t)]));
+    PB_d = (T *)(&PA_d[colsA*rowsA]);
+    AR = (T *)(&PB_d[colsB*rowsB]);
+    BR = (T *)(&AR[colsA*rowsA]);
+
+
+    curandGenerator_t gen;
+
+    /*Step 2. Perform a direct quantization algorithm*/
+    const int max_int = (1<<(digit-1)) - 1;
+    T max_mA = cublas_absmax(&cublasH, A_d, colsA*rowsA);//max_mA2;// max_abs(A_d, d_work, c_work, colsA*rowsA);
+    T max_mB = cublas_absmax(&cublasH, B_d, colsB*rowsB);//max_abs(B_d, d_work, c_work, colsB*rowsB);
+    T lambdaA = (T)max_int/max_mA;
+    T lambdaB = (T)max_int/max_mB;
+    T lambdaC = lambdaA*lambdaB;
+
+
+    quantitize_getR_int8(A_d, AI_d, PA_d, AR, rowsA, colsA, lambdaA);
+    quantitize_getR_int8(B_d, BI_d, PB_d, BR, rowsB, colsB, lambdaB);
+    I8trans(Itmp_d,BI_d,rowsB,colsB);
+
+    AL_d = (T *)(&work_dev[colsA*rowsA*sizeof(lowPtype)]);
+    AR_d = (T *)(&AL_d[rowsA]);
+    BL_d = (T *)(&AR_d[colsA]);
+    BR_d = (T *)(&BL_d[rowsB]);
+    tmp_d = (T *)(&BR_d[colsB]);
+
+    cut_gemm(AI_d, Itmp_d, CI_d, rowsA, colsA, rowsB, colsB);
+
+    sketch_r1_stream( AR, AL_d, AR_d, &tmp_d[colsA],rowsA, colsA, &gen,cublashandler, &stream);
+    sketch_r1_stream( BR, BL_d, BR_d, &tmp_d[4*colsA+3*rowsA],rowsB, colsB, &gen,cublashandler, &stream);
+
+    cudaDeviceSynchronize();
+    dequantitize_int32(CI_d, C_d, rowsA, colsB, lambdaC);
+
+
+    float  beta = 0.0;
+    alpha = 1.0;
+
+//begin full size correct
+    cublas_gemm_rowmajor(
+        &cublasH, AR_d, B_d, tmp_d,  rank,  colsA,
+        rowsB,  colsB, alpha,  beta);
+    beta = 1.0;
+    cublas_gemm_rowmajor(
+        &cublasH, AL_d, tmp_d, C_d,  rowsA,  rank,
+        rank,  colsB, alpha,  beta);
     beta = 0.0;
     cublas_gemm_rowmajor(
-        &cublasH, AR, BL_d, tmp_d,  rowsA,  colsA,
+        &cublasH, PA_d, BL_d, tmp_d,  rowsA,  colsA,
         rowsB,  rank, alpha,  beta);
     beta = 1.0;
     cublas_gemm_rowmajor(

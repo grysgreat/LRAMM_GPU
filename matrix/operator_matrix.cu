@@ -226,9 +226,21 @@ __global__ void quantitize_cuda_int8(float * matrix_in,int8_t * matrix_out,int n
     int ix = threadIdx.x+blockDim.x*blockIdx.x;
     
     matrix_out[ix] = __float2int_rd(matrix_in[ix]*lambda);
-
-
 }
+
+__global__ void quantitize_cuda_getR_int8(float * matrix_in,int8_t * matrix_out, float * matrix_P, float * matrix_R, int nx,int ny,float lambda)
+{
+    // int ix = threadIdx.x+blockDim.x*blockIdx.x;
+    // int iy = threadIdx.y+blockDim.y*blockIdx.y;
+    // int idx = ix+iy*ny;
+
+    int ix = threadIdx.x+blockDim.x*blockIdx.x;
+    
+    matrix_out[ix] = __float2int_rd(matrix_in[ix]*lambda);
+    matrix_P[ix] = ((float)matrix_out[ix])/lambda;
+    matrix_R[ix] = matrix_in[ix] - matrix_P[ix];
+}
+
 __global__ void dequantitize_cuda_int8(int8_t * matrix_in,float * matrix_out,int nx,int ny,float lambda)
 {
     int ix = threadIdx.x+blockDim.x*blockIdx.x;
@@ -512,6 +524,14 @@ void quantitize_int8(float * matrix_in,int8_t * matrix_out,int nx,int ny,float l
     dim3 grid((nx)/block.x, (ny)/block.y);
 
     quantitize_cuda_int8<<<nx*ny/256,256>>>(matrix_in,matrix_out,nx,ny,lambda);
+    cudaDeviceSynchronize();
+}
+void quantitize_getR_int8(float * matrix_in,int8_t * matrix_out, float * matrix_P, float * matrix_R, int nx,int ny,float lambda){
+    dim3 block(32, 32);
+    //二维线程网格，128×128
+    dim3 grid((nx)/block.x, (ny)/block.y);
+
+    quantitize_cuda_getR_int8<<<nx*ny/256,256>>>(matrix_in,matrix_out,matrix_P,matrix_R,nx,ny,lambda);
     cudaDeviceSynchronize();
 }
 

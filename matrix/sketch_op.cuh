@@ -131,3 +131,93 @@ void sketch_r1(
 
 
 }
+
+void sketch_r1_re(
+    float* A,  float* A_L,float* A_R, int rowsA, int colsA, 
+    curandGenerator_t *gen, cublasHandle_t *cublashandler
+) {
+    float *P;
+    float *Q;
+    float *tmp;
+    float *tmp2;
+    float *Sketch;
+    float  beta = 0.0, alpha = 1.0;
+    cudaMalloc((void**)&Sketch, sizeof(float) * colsA);
+    cudaMalloc((void**)&P, sizeof(float) * rowsA);
+    cudaMalloc((void**)&Q, sizeof(float) * colsA);
+    cudaMalloc((void**)&tmp, sizeof(float) * rowsA);
+    cudaMalloc((void**)&tmp2, sizeof(float) * colsA);
+    cublasHandle_t cublasH = *cublashandler;
+
+
+    curandCreateGenerator(gen, CURAND_RNG_PSEUDO_DEFAULT);
+    curandSetPseudoRandomGeneratorSeed(*gen,9872349ULL);
+    curandGenerateNormal(*gen, Sketch, colsA, 0.0f, 1.0f);    
+
+    cublas_gemv_rowmajor( &cublasH,A, Sketch, tmp, rowsA, colsA, alpha, beta);
+    cublas_gemv_rowmajor_trans( &cublasH,A, tmp, tmp2, rowsA, colsA, alpha, beta);
+    cublas_gemv_rowmajor( &cublasH,A, tmp2, A_L, rowsA, colsA, alpha, beta);
+    cublas_gemv_rowmajor_trans( &cublasH,A, A_L, A_R, rowsA, colsA, alpha, beta);
+
+    float normP =  cublas_norm2(&cublasH, A_L, rowsA);
+    float normQ =  cublas_norm2(&cublasH, A_R, colsA);
+
+
+    float Var_AL = normQ/(normP*normP);
+    float Var_AR = 1.0/normQ;
+
+    cublas_sscal(&cublasH, A_L, rowsA, Var_AL);
+    cublas_sscal(&cublasH, A_R, colsA, Var_AR);
+}
+
+
+void sketch_r1_stream(
+    float* A,  float* A_L,float* A_R, float * work, int rowsA, int colsA, 
+    curandGenerator_t *gen, cublasHandle_t *cublashandler, cudaStream_t *pstream
+
+) {
+    float *P;
+    float *Q;
+    float *tmp;
+    float *tmp2;
+    float *Sketch;
+    float  beta = 0.0, alpha = 1.0;
+
+    Sketch = (float *)(&work[0]);
+    P = (float *)(&Sketch[colsA]);
+    Q = (float *)(&P[rowsA]);
+    tmp = (float *)(&Q[colsA]);
+    tmp2 = (float *)(&tmp[rowsA]);
+    // cudaMalloc((void**)&Sketch, sizeof(float) * colsA);
+    // cudaMalloc((void**)&P, sizeof(float) * rowsA);
+    // cudaMalloc((void**)&Q, sizeof(float) * colsA);
+    // cudaMalloc((void**)&tmp, sizeof(float) * rowsA);
+    // cudaMalloc((void**)&tmp2, sizeof(float) * colsA);
+    cublasHandle_t cublasH = *cublashandler;
+    cudaStream_t stream = *pstream;
+
+    curandCreateGenerator(gen, CURAND_RNG_PSEUDO_DEFAULT);
+    curandSetPseudoRandomGeneratorSeed(*gen,9872349ULL);
+    curandGenerateNormal(*gen, Sketch, colsA, 0.0f, 1.0f);    
+
+    cublas_gemv_rowmajor_i( &cublasH,A, Sketch, tmp, rowsA, colsA, alpha, beta, pstream);
+
+    cublas_gemv_rowmajor_trans_i( &cublasH,A, tmp, tmp2, rowsA, colsA, alpha, beta, pstream);
+
+    cublas_gemv_rowmajor_i( &cublasH,A, tmp2, A_L, rowsA, colsA, alpha, beta, pstream);
+
+    cublas_gemv_rowmajor_trans_i( &cublasH,A, A_L, A_R, rowsA, colsA, alpha, beta, pstream);
+
+    float normP =  cublas_norm2_i(&cublasH, A_L, rowsA);
+    //cudaStreamSynchronize (stream);
+    float normQ =  cublas_norm2_i(&cublasH, A_R, colsA);
+    //cudaStreamSynchronize (stream);
+
+    float Var_AL = normQ/(normP*normP);
+    float Var_AR = 1.0/normQ;
+
+    cublas_sscal_i(&cublasH, A_L, rowsA, Var_AL);
+    //cudaStreamSynchronize (stream);
+    cublas_sscal_i(&cublasH, A_R, colsA, Var_AR);
+    //cudaStreamSynchronize (stream);
+}

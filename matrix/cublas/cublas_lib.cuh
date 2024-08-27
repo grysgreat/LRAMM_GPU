@@ -51,6 +51,24 @@ void cublas_gemv_rowmajor_trans(
     cudaDeviceSynchronize();
 }
 
+void cublas_gemv_rowmajor_i(
+    cublasHandle_t *cublashandler, float *d_A, float *d_x,
+     float *d_y, int rowA, int colA, float alpha, float beta, cudaStream_t *pstream ){
+    cublasSetStream(*cublashandler, *pstream);
+    cublasSgemm(*cublashandler, CUBLAS_OP_N, CUBLAS_OP_N, 1, rowA, colA,
+                    &alpha, d_x, 1, d_A, colA, &beta, d_y, 1);  
+    cudaStreamSynchronize (*pstream);
+}
+
+void cublas_gemv_rowmajor_trans_i(
+    cublasHandle_t *cublashandler, float *d_A, float *d_x,
+     float *d_y, int rowA, int colA, float alpha, float beta, cudaStream_t *pstream){
+    cublasSetStream(*cublashandler, *pstream);
+    cublasSgemv(*cublashandler, CUBLAS_OP_N, colA, rowA, 
+                &alpha, d_A, colA, d_x, 1, &beta, d_y, 1);  
+    cudaStreamSynchronize (*pstream);
+}
+
 float cublas_absmax(
     cublasHandle_t *cublashandler, float *d_x, int size){
     int index;float maxnum;
@@ -64,13 +82,27 @@ float cublas_absmax(
 float cublas_norm2(cublasHandle_t *cublashandler, float *d_x, int size){
     float res;
     cublasSnrm2(*cublashandler, size, d_x, 1, &res);
+    cudaDeviceSynchronize();
     return res;
 }
 
 void cublas_sscal(cublasHandle_t *cublashandler, float *d_x, int size,float alpha){
     cublasSscal(*cublashandler, size, &alpha,d_x, 1);
+    cudaDeviceSynchronize();
     return ;
 }
+
+float cublas_norm2_i(cublasHandle_t *cublashandler, float *d_x, int size){
+    float res;
+    cublasSnrm2(*cublashandler, size, d_x, 1, &res);
+    return res;
+}
+
+void cublas_sscal_i(cublasHandle_t *cublashandler, float *d_x, int size,float alpha){
+    cublasSscal(*cublashandler, size, &alpha,d_x, 1);
+    return ;
+}
+
 
 void cublas_strans(cublasHandle_t *cublashandler, float *d_in, float *d_out, int row, int col){
     float alpha = 1.0;
