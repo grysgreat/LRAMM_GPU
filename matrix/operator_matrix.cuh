@@ -20,6 +20,8 @@ void quantitize_getR_int8(float * matrix_in,int8_t * matrix_out, float * matrix_
 
 void dequantitize_int32(int32_t * matrix_in,float * matrix_out,int nx,int ny,float lambda);
 
+void float2half(float * matrix_in,float * matrix_out,int nx,int ny);
+ 
 
 void diag_matmul(float* A, float* x, int row, int col);
 void diag_matmul_col(float* A, float* x, int row, int col);

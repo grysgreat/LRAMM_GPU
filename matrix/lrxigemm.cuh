@@ -339,6 +339,28 @@ void xigemm(T *A_d, T *B_d, T *C_d, int rowsA, int colsA, int rowsB, int colsB) 
 
 
 
+template <typename T>
+void xhgemm(T *A_d, T *B_d, T *C_d, int rowsA, int colsA, int rowsB, int colsB, cublasHandle_t *cublashandler) {
+    /*Step 1. prepare work space*/
+    float *Ah_d, *Bh_d;
+    cublasHandle_t cublasH = *cublashandler;
+    int maxRC1 = max(rowsA,rowsB);
+    int maxRC2 = max(colsA,colsB);
+    cudaMalloc((float **)&Ah_d, sizeof(float) * colsA*rowsA);
+    cudaMalloc((float **)&Bh_d, sizeof(float) * colsB*rowsB);
+
+
+    float2half(A_d, Ah_d, rowsA, colsA);
+    float2half(B_d, Bh_d, rowsB, colsB);
+    float alpha = 1.0, beta = 0.0;
+    cublas_gemm_rowmajor(
+        &cublasH, Ah_d, Bh_d, C_d,  rowsA,  colsA,
+        rowsB,  colsB, alpha,  beta);
+    beta = 1.0;
+
+}
+
+
 template <typename T,int digit>
 void xigemm_mem(T *A_d, T *B_d, T *C_d, char *work_dev, int rowsA, int colsA, int rowsB, int colsB) {
 
@@ -689,11 +711,12 @@ void skxigemm_mem(
 
 
 
+
 template <typename T,int digit>
 void skxigemm_mem_fusion(
     T *A_d, T *B_d, T *C_d, char *work_dev,
     int rowsA, int colsA, int rowsB, int colsB, int rank, 
-    cusolverDnHandle_t *cusolverhandler, cublasHandle_t *cublashandler) {
+    cublasHandle_t *cublashandler) {
 
     rank = 1;
     using lowPtype = int8_t;
@@ -747,12 +770,12 @@ void skxigemm_mem_fusion(
     BR_d = (T *)(&BL_d[rowsB]);
     tmp_d = (T *)(&BR_d[colsB]);
 
-    cut_gemm(AI_d, Itmp_d, CI_d, rowsA, colsA, rowsB, colsB);
-
     sketch_r1_stream( AR, AL_d, AR_d, &tmp_d[colsA],rowsA, colsA, &gen,cublashandler, &stream);
     sketch_r1_stream( BR, BL_d, BR_d, &tmp_d[4*colsA+3*rowsA],rowsB, colsB, &gen,cublashandler, &stream);
 
-    cudaDeviceSynchronize();
+
+    cut_gemm_workspace(AI_d, Itmp_d, CI_d, (lowPtype *)&tmp_d[8*colsA+8*rowsA], rowsA, colsA, rowsB, colsB);
+
     dequantitize_int32(CI_d, C_d, rowsA, colsB, lambdaC);
 
 

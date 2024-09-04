@@ -215,6 +215,16 @@ __global__ void sum_sq2_in_array(float *g_idata, float *g_odata, int n) {
         //printf("sd = %f,\n",sdata[0]);
     }
 }
+__global__ void float2half_cuda(float * matrix_in,float * matrix_out,int nx,int ny)
+{
+    // int ix = threadIdx.x+blockDim.x*blockIdx.x;
+    // int iy = threadIdx.y+blockDim.y*blockIdx.y;
+    // int idx = ix+iy*ny;
+
+    int ix = threadIdx.x+blockDim.x*blockIdx.x;
+    unsigned int hfi = (*((unsigned int *)&matrix_in[ix]))|0x1000;
+    matrix_out[ix] = *(float*)(&hfi);;
+}
 
 
 __global__ void quantitize_cuda_int8(float * matrix_in,int8_t * matrix_out,int nx,int ny,float lambda)
@@ -239,6 +249,8 @@ __global__ void quantitize_cuda_getR_int8(float * matrix_in,int8_t * matrix_out,
     matrix_out[ix] = __float2int_rd(matrix_in[ix]*lambda);
     matrix_P[ix] = ((float)matrix_out[ix])/lambda;
     matrix_R[ix] = matrix_in[ix] - matrix_P[ix];
+
+    //printf("matrix_in=%f, R = %f, p = %f\n",matrix_in[ix], matrix_R[ix],matrix_P[ix]);
 }
 
 __global__ void dequantitize_cuda_int8(int8_t * matrix_in,float * matrix_out,int nx,int ny,float lambda)
@@ -516,6 +528,15 @@ void avg_abs_vec(float* d_array,float* d_work,float* c_work,float* output, int r
         }
     }
     return ;
+}
+
+void float2half(float * matrix_in,float * matrix_out,int nx,int ny){
+    dim3 block(32, 32);
+    //二维线程网格，128×128
+    dim3 grid((nx)/block.x, (ny)/block.y);
+
+    float2half_cuda<<<nx*ny/256,256>>>(matrix_in,matrix_out,nx,ny);
+    cudaDeviceSynchronize();
 }
 
 void quantitize_int8(float * matrix_in,int8_t * matrix_out,int nx,int ny,float lambda){
