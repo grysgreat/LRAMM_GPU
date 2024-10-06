@@ -235,3 +235,4 @@ using Gemm = cutlass::gemm::device::Gemm<
 
 void cut_gemm(input_t *A, input_t* B, output_t* C,int rowA,int colA, int rowB,int colB);
 
+void cut_gemm_workspace(input_t *A, input_t* B, output_t* C,input_t* workspace,int rowA,int colA, int rowB,int colB);

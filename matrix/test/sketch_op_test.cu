@@ -3,6 +3,16 @@
 #include "../gen_matrix.cuh"
 #include "../print_matrix.cuh"
 
+
+void print_MatrixE(float matrix[], int rows, int cols) {
+    for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < cols; ++j) {
+            int index = i * cols + j;
+            printf("%.2e ", matrix[index]);
+        }
+        std::cout << std::endl;
+    }
+}
 template <typename T>
 void xgemm(const T A[], const T B[], T C[], int rowsA, int colsA, int rowsB, int colsB) {
 
@@ -192,6 +202,8 @@ void skxigemm_acc(){
     return ;
 }
 
+
+
 void precision_test(){
     int test_para[2048][5] = {
 
@@ -200,7 +212,7 @@ void precision_test(){
         // {2048,2048,2048,30},
         // {2048,2048,2048,20},
         // {2048,2048,2048,10},
-
+        {256,256,256,10,'n'},
         {4096,4096,4096,10,'n'},
         {4096,4096,4096,10,'u'},
         {4096,4096,4096,10,'s'},
@@ -321,7 +333,7 @@ void precision_test(){
         }
         {
             //skxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
-            skxigemm_mem_fusion<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cusolverH, &cublasH);
+            skxigemm_mem_fusion<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cublasH);
             cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
             float R3 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
@@ -462,11 +474,11 @@ void performance_test(){
             printf("%.7lf\t",time);
         }
         {
-            skxigemm_mem_fusion<float,8>(A_d,B_d,C_d,work,128,128,128,128,1, &cusolverH, &cublasH);
+            skxigemm_mem_fusion<float,8>(A_d,B_d,C_d,work,128,128,128,128,1, &cublasH);
             //skxigemm<float,8>(A_d,B_d,C_d,128,128,128,128,1, &cusolverH, &cublasH);
             auto start = std::chrono::high_resolution_clock::now();
             //skxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
-            skxigemm_mem_fusion<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cusolverH, &cublasH);
+            skxigemm_mem_fusion<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cublasH);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double, std::milli> diff = end - start;   
             double time  = diff.count();
@@ -478,10 +490,231 @@ void performance_test(){
     return;        
 }
 
+
+
+void nsys_perf_test(){
+    int test_para[2048][5] = {
+        {4096*4,4096*4,4096*4,1},
+    }; 
+  
+    cublasHandle_t cublasH = NULL;
+    CUBLAS_CHECK(cublasCreate(&cublasH));
+
+    int max = 4096*4;
+    float *matrixA = (float *)malloc(sizeof(float) * max*max);
+    float *matrixB = (float *)malloc(sizeof(float) * max*max);
+    float *matrixC = (float *)malloc(sizeof(float) * max*max);
+    float *matrixCQ = (float *)malloc(sizeof(float) * max*max);
+    float *matrixR = (float *)malloc(sizeof(float) * max*max);
+
+    char * work;
+    cudaMalloc((char **)&work, sizeof(float) * (max*max*6+max*5));
+
+    std::cout<<"M\tN\tK\trank\tSGEMM\t\torigin\t\tLrxigemm\tsketch\n";
+    const int digit = 8;
+    
+    float *A_d, *B_d, *C_d;
+    // generate_matrix<float>(matrixA,max,max,'u');
+    // generate_matrix<float>(matrixB,max,max,'u');       
+    for(int i=0;i<1;i++){
+        
+
+        int N=test_para[i][0],M=test_para[i][1],K=test_para[i][2];
+        int rank =test_para[i][3];
+
+        float alpha = 1.0, beta = 0.0;
+        if(M==0) return;
+        cudaMalloc((float **)&A_d, sizeof(float) * M*K);
+        cudaMalloc((float **)&B_d, sizeof(float) * K*N);
+        cudaMalloc((float **)&C_d, sizeof(float) * M*N);
+        // cudaMemcpy(A_d, matrixA, sizeof(float) * M*K, cudaMemcpyHostToDevice);
+        // cudaMemcpy(B_d, matrixB, sizeof(float) * K*N, cudaMemcpyHostToDevice);
+        cudaDeviceSynchronize();
+
+        //计算float和int矩阵乘法得到结果矩阵
+        auto start = std::chrono::high_resolution_clock::now();
+        skxigemm_mem_fusion<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cublasH);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> diff = end - start;   
+        double time  = diff.count();
+        printf("%.7lf\n",time);
+    }
+    return;        
+}
+
+void compare_print_test(){
+    int test_para[2048][5] = {
+
+        // {2048,2048,2048,50},
+        // {2048,2048,2048,40},
+        // {2048,2048,2048,30},
+        // {2048,2048,2048,20},
+        // {2048,2048,2048,10},
+        {16,16,16,10,'k'},
+    }; 
+  
+    cublasHandle_t cublasH = NULL;
+    cusolverDnHandle_t cusolverH = NULL;
+    CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
+    CUBLAS_CHECK(cublasCreate(&cublasH));
+
+    int max = 8192;
+    float *matrixA = (float *)malloc(sizeof(float) * max*max);
+    float *matrixAR = (float *)malloc(sizeof(float) * max*max);
+    float *matrixAR2 = (float *)malloc(sizeof(float) * max*max);
+    std::cout<<"M\tN\tK\ttype\trank\torigin\t\tLrxigemm\tsketch\n";
+    const int digit = 8;
+    char * work;
+    cudaMalloc((char **)&work, sizeof(float) * (max*max*8+max*5));
+
+    float *A_d, *AL_d, *AR_d, *A2_d, *RA_d, *RA2_d, *PA_d;
+    int8_t *AI_d;
+    for(int i=0;i<1;i++){
+        
+
+        int N=test_para[i][0],M=test_para[i][1],K=test_para[i][2];
+        int rank =test_para[i][3];
+        char type =test_para[i][4];
+
+        float alpha = 1.0, beta = 0.0;
+
+        if(i!=0) {
+            if(N!=test_para[i-1][0]||M!=test_para[i-1][1]||K!=test_para[i-1][2]||type!=test_para[i-1][4]){
+                generate_matrix<float>(matrixA,M,K,type);
+            }
+        } else {
+            generate_matrix<float>(matrixA,M,K,type);
+        }
+        cudaMalloc((float **)&A_d, sizeof(float) * M*N);
+        cudaMalloc((float **)&A2_d, sizeof(float) * M*N);
+        cudaMalloc((float **)&RA_d, sizeof(float) * M*N);
+        cudaMalloc((float **)&RA2_d, sizeof(float) * M*N);
+        cudaMalloc((float **)&PA_d, sizeof(float) * M*N);
+        cudaMalloc((int8_t **)&AI_d, sizeof(int8_t) * M*N);
+
+        cudaMalloc((float **)&AL_d, sizeof(float) * M);
+        cudaMalloc((float **)&AR_d, sizeof(float) * N);
+        cudaMemcpy(A_d, matrixA, sizeof(float) * M*N, cudaMemcpyHostToDevice);
+        cudaDeviceSynchronize();
+
+
+
+
+        const int max_int = (1<<(8-1)) - 1;
+        float max_mA = cublas_absmax(&cublasH, A_d, M*N);
+        float lambdaA = (float)max_int/max_mA;
+
+        
+        quantitize_getR_int8(A_d, AI_d, PA_d, RA_d, M, N, lambdaA);
+
+        cudaMemcpy(matrixAR , RA_d, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+        cudaDeviceSynchronize();
+        printf("AR = \n");
+        print_MatrixE(matrixAR,M,N);
+
+
+        //计算float和int矩阵乘法得到结果矩阵
+        curandGenerator_t gen;
+        sketch_r1_re( RA_d, AL_d, AR_d,M, N, &gen, &cublasH);
+
+        cublas_gemm_rowmajor(
+            &cublasH, AL_d, AR_d, RA2_d,  M,  1,
+            1,  N, alpha,  beta);
+        cudaDeviceSynchronize();
+        cudaMemcpy(matrixAR2 , RA2_d, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+        cudaDeviceSynchronize();
+        printf("\n\n\nSKETCH-AR = \n");
+        print_MatrixE(matrixAR2,M,N);
+        alpha = -1.0;
+        cublas_saxpy(RA_d, RA2_d ,alpha, M*N, cublasH);
+        cudaDeviceSynchronize();
+        cudaMemcpy(matrixAR2 , RA2_d, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+        cudaDeviceSynchronize();
+        printf("\n\n\nSKETCH - RAR = \n");
+        print_MatrixE(matrixAR2,M,N);
+
+        float sum =0,sumabs = 0;
+        for(int j=0;j<M*N;j++){
+            sum += matrixAR2[j];
+            sumabs  +=abs(matrixAR2[j]);
+        }
+        printf("\n\nsum=%.4f, sumabs=%.4f, avg = %.4f, avg_abs=%.4f\n",sum,sumabs,sum/(float(M*N)),sumabs/(float(M*N)));
+        alpha = 1.0;
+        //计算float和int矩阵乘法得到结果矩阵
+        cusolver_rsvd_LR(M, N, RA_d, AL_d, AR_d, 1, &cusolverH);
+
+        cublas_gemm_rowmajor(
+            &cublasH, AL_d, AR_d, RA2_d,  M,  1,
+            1,  N, alpha,  beta);
+        cudaDeviceSynchronize();
+        cudaMemcpy(matrixAR2 , RA2_d, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+        cudaDeviceSynchronize();
+        printf("\n\n\nCUSOLVER - AR = \n");
+        print_MatrixE(matrixAR2,M,N);
+
+        alpha = -1.0;
+        cublas_saxpy(RA_d, RA2_d ,alpha, M*N, cublasH);
+        cudaDeviceSynchronize();
+        cudaMemcpy(matrixAR2 , RA2_d, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+        cudaDeviceSynchronize();
+        printf("\n\n\nCUSOLVER - RAR = \n");
+        print_MatrixE(matrixAR2,M,N);
+
+    }
+    return;        
+}
+
+void xhgemm_acc(){
+    int max = 1024;
+    float *matrixA = (float *)malloc(sizeof(float) * max*max);
+    float *matrixB = (float *)malloc(sizeof(float) * max*max);
+    float *matrixC = (float *)malloc(sizeof(float) * max*max);
+    float *matrixCQ = (float *)malloc(sizeof(float) * max*max);
+    float *matrixR = (float *)malloc(sizeof(float) * max*max);
+
+    int M=max , N=max, K = max;
+
+    generate_matrix<float>(matrixA,M,K,'n');
+    generate_matrix<float>(matrixB,K,N,'n');    
+
+    xgemm(matrixA,matrixB,matrixC,M,K,K,N);
+
+    float *A_d, *B_d, *C_d;
+    cudaMalloc((float **)&A_d, sizeof(float) * M*K);
+    cudaMalloc((float **)&B_d, sizeof(float) * K*N);
+    cudaMalloc((float **)&C_d, sizeof(float) * M*N);
+    cudaMemcpy(A_d, matrixA, sizeof(float) * M*K, cudaMemcpyHostToDevice);
+    cudaMemcpy(B_d, matrixB, sizeof(float) * K*N, cudaMemcpyHostToDevice);
+
+    xigemm<float,8>(A_d,B_d,C_d,M,K,K,N);
+    cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
+    float R2 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
+    printf("%.7f\n",R2);
+
+    cublasHandle_t cublasH = NULL;
+    cusolverDnHandle_t cusolverH = NULL;
+    CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
+    CUBLAS_CHECK(cublasCreate(&cublasH));
+
+    xhgemm<float>(A_d,B_d,C_d,M,K,K,N,&cublasH);
+    cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
+    cudaDeviceSynchronize();
+    float R3 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
+
+    printf("%.7f\n",R3);
+
+
+    return ;
+}
+
 int main(){
     //skxigemm_acc();
     //curand_test();
     //sketch_acc_test();
-    performance_test();
-    precision_test();
+    // performance_test();
+    //precision_test();
+
+    // nsys_perf_test();
+    xhgemm_acc();
+    //compare_print_test();
 }

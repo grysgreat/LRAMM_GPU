@@ -221,3 +221,54 @@ void sketch_r1_stream(
     cublas_sscal_i(&cublasH, A_R, colsA, Var_AR);
     //cudaStreamSynchronize (stream);
 }
+
+
+void sketch_block(
+    float* A,  float* A_L,float* A_R, int rowsA, int colsA, 
+    curandGenerator_t *gen, cublasHandle_t *cublashandler, int block_size
+) {
+    float *P;
+    float *Q;
+    float *tmp;
+    float *tmp2;
+    float *Sketch;
+    float  beta = 0.0, alpha = 1.0;
+    cudaMalloc((void**)&Sketch, sizeof(float) * colsA);
+    cudaMalloc((void**)&P, sizeof(float) * rowsA);
+    cudaMalloc((void**)&Q, sizeof(float) * colsA);
+    cudaMalloc((void**)&tmp, sizeof(float) * rowsA);
+    cudaMalloc((void**)&tmp2, sizeof(float) * colsA);
+    cublasHandle_t cublasH = *cublashandler;
+
+
+    curandCreateGenerator(gen, CURAND_RNG_PSEUDO_DEFAULT);
+    curandSetPseudoRandomGeneratorSeed(*gen,9872349ULL);
+    curandGenerateNormal(*gen, Sketch, block_size, 0.0f, 1.0f);    
+
+    int row_block = rowsA/block_size;
+    int col_block = colsA/block_size;
+    for(int i=0;i<row_block;i++){
+        for(int j=0;j<col_block;j++){
+            int index = i*block_size*colsA + j*block_size;
+            int index_l= i*block_size*col_block + j;
+            int index_r= i*colsA + j;
+            cublas_gemv_rowmajor_ld( &cublasH, &A[index], Sketch, tmp, block_size, block_size, alpha, beta, colsA, 1 , 1);
+            cublas_gemv_rowmajor_trans_ld( &cublasH,&A[index], tmp, tmp2, block_size, block_size, alpha, beta,colsA, 1 , 1);
+            cublas_gemv_rowmajor_ld( &cublasH,&A[index], tmp2, &A_L[index_l], block_size, block_size, alpha, beta, colsA, 1, col_block);
+        }
+    }
+    // cublas_gemv_rowmajor( &cublasH,A, Sketch, tmp, rowsA, colsA, alpha, beta);
+    // cublas_gemv_rowmajor_trans( &cublasH,A, tmp, tmp2, rowsA, colsA, alpha, beta);
+    // cublas_gemv_rowmajor( &cublasH,A, tmp2, A_L, rowsA, colsA, alpha, beta);
+    // cublas_gemv_rowmajor_trans( &cublasH,A, A_L, A_R, rowsA, colsA, alpha, beta);
+
+    float normP =  cublas_norm2(&cublasH, A_L, rowsA);
+    float normQ =  cublas_norm2(&cublasH, A_R, colsA);
+
+
+    float Var_AL = normQ/(normP*normP);
+    float Var_AR = 1.0/normQ;
+
+    cublas_sscal(&cublasH, A_L, rowsA, Var_AL);
+    cublas_sscal(&cublasH, A_R, colsA, Var_AR);
+}

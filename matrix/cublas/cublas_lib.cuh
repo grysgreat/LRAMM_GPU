@@ -51,6 +51,25 @@ void cublas_gemv_rowmajor_trans(
     cudaDeviceSynchronize();
 }
 
+void cublas_gemv_rowmajor_ld(
+    cublasHandle_t *cublashandler, float *d_A, float *d_x,
+     float *d_y, int rowA, int colA, float alpha, float beta,
+     int lda, int ldx, int ldy){
+    cublasSgemm(*cublashandler, CUBLAS_OP_N, CUBLAS_OP_N, 1, rowA, colA,
+                    &alpha, d_x, ldx, d_A, lda, &beta, d_y, ldy);  
+    cudaDeviceSynchronize();
+
+}
+
+void cublas_gemv_rowmajor_trans_ld(
+    cublasHandle_t *cublashandler, float *d_A, float *d_x,
+     float *d_y, int rowA, int colA, float alpha, float beta,
+     int lda, int ldx, int ldy){
+    cublasSgemv(*cublashandler, CUBLAS_OP_N, colA, rowA, 
+                &alpha, d_A, lda, d_x, ldx, &beta, d_y, ldy);  
+    cudaDeviceSynchronize();
+}
+
 void cublas_gemv_rowmajor_i(
     cublasHandle_t *cublashandler, float *d_A, float *d_x,
      float *d_y, int rowA, int colA, float alpha, float beta, cudaStream_t *pstream ){

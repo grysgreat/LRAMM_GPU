@@ -216,7 +216,7 @@ void gemv_acc_test(){
     // 创建一个使用float类型的数组
     std::vector<float> int4b_arrayA(M*N);
     std::vector<float> int4b_arrayB(N);
-    std::vector<float> int32b_arrayC(M);
+    std::vector<float> int32b_arrayC(M*4);
 
 
     // 初始化数组
@@ -261,15 +261,18 @@ void gemv_acc_test(){
     // cublasSgemv(cublasH, CUBLAS_OP_N, M, N, 
     //             &alpha, d_A_tmp, M, d_B, 1, &beta, d_C, 1);  
 
-    cublasSgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, 1, M, N,
-                    &alpha, d_B, 1, d_A, N, &beta, d_C, 1);  
+    cublasSgemm(cublasH, CUBLAS_OP_N, CUBLAS_OP_N, 1, 4, 4,
+                    &alpha, d_B, 1, d_A, N, &beta, d_C, 4);  
     cudaDeviceSynchronize();
 
     cudaMemcpy( int32b_arrayC.data(),d_C, sizeof(float) * M, cudaMemcpyDeviceToHost);
     printf("\n");
 
     for (int i = 0; i < M; ++i) {
-        printf("%d,",static_cast<int>(int32b_arrayC[i]));
+        for(int j=0;j<4;j++){
+            printf("%d,",static_cast<int>(int32b_arrayC[i*4+j]));
+        }
+        printf("\n");
     }
     printf("\n");
     printf("\n");
@@ -278,8 +281,8 @@ void gemv_acc_test(){
 
 int main(){
     //axpy_perf_test();
-    //gemv_acc_test();
-      gemm_acc_test();
-      //gemm_acc_test2();
+    gemv_acc_test();
+    //gemm_acc_test();
+    //gemm_acc_test2();
     return 0;
 }
