@@ -279,10 +279,68 @@ void gemv_acc_test(){
 }
 
 
+void gemm_perf_test(){
+    cublasHandle_t cublasH = NULL;
+    CUBLAS_CHECK(cublasCreate(&cublasH));
+    // 定义数组的大小
+    int M=8192,N=8192,K=8192;
+    // 创建一个使用float类型的数组
+    std::vector<half> int4b_arrayA(M*K);
+    std::vector<half> int4b_arrayB(K*N);
+    std::vector<half> int32b_arrayC(M*N);
+
+
+    // // 初始化数组
+    // for (int i = 0; i < M; ++i) {
+    //     for(int j=0;j<K;j++){
+    //         // 将每个元素初始化为它的索引值，注意这里只是示例，实际值可能需要根据量化规则来确定
+    //         int4b_arrayA[i*K+j] = static_cast<half>(i*K+j);
+    //     }
+    // }
+    // for (int i = 0; i < K; ++i) {
+    //     for(int j=0;j<N;j++){
+    //         // 将每个元素初始化为它的索引值，注意这里只是示例，实际值可能需要根据量化规则来确定
+    //         int4b_arrayB[i*N+j] = static_cast<half>(j);
+    //     }
+    // }
+
+
+    half* d_A;
+    half* d_B;
+    half* d_C;
+    cudaMalloc((void**)&d_A, sizeof(half) * M*K);
+    cudaMalloc((void**)&d_B, sizeof(half) * K*N);
+    cudaMalloc((void**)&d_C, sizeof(half) * M*N);
+    cudaMemcpy(d_A, int4b_arrayA.data(), sizeof(half) * M*K, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, int4b_arrayB.data(), sizeof(half) * K*N, cudaMemcpyHostToDevice);
+
+    float beta = 0.0, alpha = 1.0;
+
+
+    cublas_gemm_rowmajor(
+        &cublasH, d_A, d_B, d_C, M, K,
+        K, N, alpha, beta);
+
+    auto start = std::chrono::high_resolution_clock::now();
+    cublas_gemm_rowmajor(
+        &cublasH, d_A, d_B, d_C, M, K,
+        K, N, alpha, beta);
+    cudaDeviceSynchronize();
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> diff = end - start;
+    double time  = diff.count();
+    std::cout<< std::fixed << std::setprecision(6) << time << "\n";
+ 
+
+
+
+}
+
 int main(){
     //axpy_perf_test();
-    gemv_acc_test();
+    //gemv_acc_test();
     //gemm_acc_test();
     //gemm_acc_test2();
+    gemm_perf_test();
     return 0;
 }
