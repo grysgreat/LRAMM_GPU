@@ -1,7 +1,6 @@
 #include "../cublas/cublas_lib.cuh"
 #include "../operator_matrix.cuh"
 #include "../gen_matrix.cuh"
-#include "../print_matrix.cuh"
 
 #include <iomanip>
 #include "stdio.h"

@@ -1,6 +1,5 @@
 list(APPEND objects
 gen_matrix.cu
-print_matrix.cu
 operator_matrix.cu
 cutlass_gemm_op.cu
 )

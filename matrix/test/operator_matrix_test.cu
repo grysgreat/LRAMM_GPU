@@ -1,12 +1,11 @@
 #include "../operator_matrix.cuh"
 #include "../gen_matrix.cuh"
-#include "../print_matrix.cuh"
 
 #include "help_func.cu"
 #include <iomanip>
 #include "stdio.h"
 #include <chrono>
-
+#include <iostream>
 const int TILE_DIM = 32;
 const int BLOCK_ROWS = 8;
 const int NUM_REPS = 100;

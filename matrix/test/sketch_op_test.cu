@@ -1,7 +1,6 @@
 #include "../lrxigemm.cuh"
 #include <chrono>
 #include "../gen_matrix.cuh"
-#include "../print_matrix.cuh"
 
 
 void print_MatrixE(float matrix[], int rows, int cols) {

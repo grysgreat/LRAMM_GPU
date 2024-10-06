@@ -9,7 +9,6 @@
 #include "../lrxigemm.cuh"
 #include <chrono>
 #include "../gen_matrix.cuh"
-#include "../print_matrix.cuh"
 
 
 template <typename T>
