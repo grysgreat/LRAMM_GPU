@@ -3,8 +3,6 @@
 // dim3 block(32);
 // dim3 grid(rows/32);
 
-
-
 const int TILE_DIM = 32;
 const int BLOCK_ROWS = 8;
 const int NUM_REPS = 100;
@@ -215,16 +213,35 @@ __global__ void sum_sq2_in_array(float *g_idata, float *g_odata, int n) {
         //printf("sd = %f,\n",sdata[0]);
     }
 }
-__global__ void float2half_cuda(float * matrix_in,float * matrix_out,int nx,int ny)
+// __global__ void float2half_cuda(float * matrix_in,float * matrix_out,int nx,int ny)
+// {
+//     // int ix = threadIdx.x+blockDim.x*blockIdx.x;
+//     // int iy = threadIdx.y+blockDim.y*blockIdx.y;
+//     // int idx = ix+iy*ny;
+
+//     int ix = threadIdx.x+blockDim.x*blockIdx.x;
+//     unsigned int hfi = (*((unsigned int *)&matrix_in[ix]))|0x1000;
+//     matrix_out[ix] = *(float*)(&hfi);;
+// }
+__global__ void float2half_cuda(float * matrix_in, half * matrix_out,int nx,int ny)
 {
     // int ix = threadIdx.x+blockDim.x*blockIdx.x;
     // int iy = threadIdx.y+blockDim.y*blockIdx.y;
     // int idx = ix+iy*ny;
 
     int ix = threadIdx.x+blockDim.x*blockIdx.x;
-    unsigned int hfi = (*((unsigned int *)&matrix_in[ix]))|0x1000;
-    matrix_out[ix] = *(float*)(&hfi);;
+    matrix_out[ix] = (half)(matrix_in[ix]);
 }
+__global__ void half2float_cuda(half * matrix_in, float * matrix_out,int nx,int ny)
+{
+    // int ix = threadIdx.x+blockDim.x*blockIdx.x;
+    // int iy = threadIdx.y+blockDim.y*blockIdx.y;
+    // int idx = ix+iy*ny;
+
+    int ix = threadIdx.x+blockDim.x*blockIdx.x;
+    matrix_out[ix] = (float)(matrix_in[ix]);
+}
+
 
 
 __global__ void quantitize_cuda_int8(float * matrix_in,int8_t * matrix_out,int nx,int ny,float lambda)
@@ -530,7 +547,7 @@ void avg_abs_vec(float* d_array,float* d_work,float* c_work,float* output, int r
     return ;
 }
 
-void float2half(float * matrix_in,float * matrix_out,int nx,int ny){
+void float2half(float * matrix_in,half * matrix_out,int nx,int ny){
     dim3 block(32, 32);
     //二维线程网格，128×128
     dim3 grid((nx)/block.x, (ny)/block.y);
@@ -538,7 +555,14 @@ void float2half(float * matrix_in,float * matrix_out,int nx,int ny){
     float2half_cuda<<<nx*ny/256,256>>>(matrix_in,matrix_out,nx,ny);
     cudaDeviceSynchronize();
 }
+void half2float(half * matrix_in,float * matrix_out,int nx,int ny){
+    dim3 block(32, 32);
+    //二维线程网格，128×128
+    dim3 grid((nx)/block.x, (ny)/block.y);
 
+    half2float_cuda<<<nx*ny/256,256>>>(matrix_in,matrix_out,nx,ny);
+    cudaDeviceSynchronize();
+}
 void quantitize_int8(float * matrix_in,int8_t * matrix_out,int nx,int ny,float lambda){
     dim3 block(32, 32);
     //二维线程网格，128×128

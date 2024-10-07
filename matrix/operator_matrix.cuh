@@ -1,3 +1,6 @@
+
+#include <cublas_v2.h>
+#include <cuda_runtime.h>
 float max_abs(float* d_array,float* d_work,float* c_work, int size);
 
 float min_abs(float* d_array,float* d_work,float* c_work, int size);
@@ -20,7 +23,9 @@ void quantitize_getR_int8(float * matrix_in,int8_t * matrix_out, float * matrix_
 
 void dequantitize_int32(int32_t * matrix_in,float * matrix_out,int nx,int ny,float lambda);
 
-void float2half(float * matrix_in,float * matrix_out,int nx,int ny);
+void float2half(float * matrix_in,half * matrix_out,int nx,int ny);
+void half2float(half * matrix_in,float * matrix_out,int nx,int ny);
+ 
  
 
 void diag_matmul(float* A, float* x, int row, int col);

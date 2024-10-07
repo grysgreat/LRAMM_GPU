@@ -339,24 +339,33 @@ void xigemm(T *A_d, T *B_d, T *C_d, int rowsA, int colsA, int rowsB, int colsB) 
 
 
 
-template <typename T>
-void xhgemm(T *A_d, T *B_d, T *C_d, int rowsA, int colsA, int rowsB, int colsB, cublasHandle_t *cublashandler) {
+
+void shgemm(float *A_d, float *B_d, float *C_d, int rowsA, int colsA, int rowsB, int colsB, cublasHandle_t *cublashandler) {
     /*Step 1. prepare work space*/
-    float *Ah_d, *Bh_d;
+    half *Ah_d, *Bh_d, *Ch_d ;
     cublasHandle_t cublasH = *cublashandler;
     int maxRC1 = max(rowsA,rowsB);
     int maxRC2 = max(colsA,colsB);
-    cudaMalloc((float **)&Ah_d, sizeof(float) * colsA*rowsA);
-    cudaMalloc((float **)&Bh_d, sizeof(float) * colsB*rowsB);
-
+    cudaMalloc((half **)&Ah_d, sizeof(half) * colsA*rowsA);
+    cudaMalloc((half **)&Bh_d, sizeof(half) * colsB*rowsB);
+    cudaMalloc((half **)&Ch_d, sizeof(half) * colsB*rowsA);
 
     float2half(A_d, Ah_d, rowsA, colsA);
     float2half(B_d, Bh_d, rowsB, colsB);
-    float alpha = 1.0, beta = 0.0;
+
+    half alpha = 1.0, beta = 0.0;
     cublas_gemm_rowmajor(
-        &cublasH, Ah_d, Bh_d, C_d,  rowsA,  colsA,
+        &cublasH, Ah_d, Bh_d, Ch_d,  rowsA,  colsA,
         rowsB,  colsB, alpha,  beta);
-    beta = 1.0;
+
+    // std::vector<float> tmp(rowsA*colsB);
+
+    half2float(Ch_d, C_d, rowsA, colsB);
+    cudaDeviceSynchronize();
+    // cudaMemcpy( tmp.data(),C_d, sizeof(float) * rowsA*colsB, cudaMemcpyDeviceToHost);
+    // for(int i=0;i<10;i++){
+    //     printf("%f, ",(float)tmp[i]);
+    // }
 
 }
 

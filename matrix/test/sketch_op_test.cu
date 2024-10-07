@@ -211,13 +211,13 @@ void precision_test(){
         // {2048,2048,2048,30},
         // {2048,2048,2048,20},
         // {2048,2048,2048,10},
-        {256,256,256,10,'n'},
-        {4096,4096,4096,10,'n'},
-        {4096,4096,4096,10,'u'},
-        {4096,4096,4096,10,'s'},
-        {4096,4096,4096,10,'e'},
-        {4096,4096,4096,10,'k'},
-        {4096,4096,4096,10,'p'},
+        {1024,1024,1024,10,'n'},
+        {1024,1024,1024,10,'n'},
+        {1024,1024,1024,10,'u'},
+        {1024,1024,1024,10,'s'},
+        {1024,1024,1024,10,'e'},
+        {1024,1024,1024,10,'k'},
+        {1024,1024,1024,10,'p'},
 
         // {128,128,128,10,'k'},
         // {256,256,256,10,'k'},
@@ -259,7 +259,7 @@ void precision_test(){
     float *matrixCQ = (float *)malloc(sizeof(float) * max*max);
     float *matrixR = (float *)malloc(sizeof(float) * max*max);
 
-    std::cout<<"M\tN\tK\ttype\trank\torigin\t\tLrxigemm\tsketch\n";
+    std::cout<<"M\tN\tK\ttype\trank\torigin\t\tLrxigemm\tsketch\t\tsketch_fu\thgemm\n";
     const int digit = 8;
     char * work;
     cudaMalloc((char **)&work, sizeof(float) * (max*max*8+max*5));
@@ -336,7 +336,16 @@ void precision_test(){
             cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
             float R3 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
+            printf("%.7f\t",R3);
+        }
+        {
+            shgemm(A_d,B_d,C_d,M,K,K,N,&cublasH);
+            cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
+            cudaDeviceSynchronize();
+            float R3 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
+
             printf("%.7f\n",R3);
+
         }
     }
     return;        
@@ -691,11 +700,9 @@ void xhgemm_acc(){
     printf("%.7f\n",R2);
 
     cublasHandle_t cublasH = NULL;
-    cusolverDnHandle_t cusolverH = NULL;
-    CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
     CUBLAS_CHECK(cublasCreate(&cublasH));
 
-    xhgemm<float>(A_d,B_d,C_d,M,K,K,N,&cublasH);
+    shgemm(A_d,B_d,C_d,M,K,K,N,&cublasH);
     cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
     cudaDeviceSynchronize();
     float R3 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
@@ -711,9 +718,9 @@ int main(){
     //curand_test();
     //sketch_acc_test();
     // performance_test();
-    //precision_test();
+    precision_test();
 
     // nsys_perf_test();
-    xhgemm_acc();
+    //xhgemm_acc();
     //compare_print_test();
 }

@@ -7,6 +7,21 @@
 #include <chrono>
 
 
+template <typename T>
+T get_Ferror(T matrix_ref[],T matrix_cmp[],int rows,int cols){
+
+    T sumR=0,sum=0;
+    for(int i=0;i<rows;i++){
+        for(int j=0;j<cols;j++){
+            sumR+=(matrix_ref[i*cols+j] - matrix_cmp[i*cols+j])*(matrix_ref[i*cols+j] - matrix_cmp[i*cols+j]);
+            sum+=(matrix_ref[i*cols+j])*(matrix_ref[i*cols+j]);
+        }
+    }
+
+    T ans = sqrt(sumR)/sqrt(sum);
+    return ans;
+
+}
 
 
 int axpy_perf_test(){
@@ -278,7 +293,7 @@ void gemv_acc_test(){
 }
 
 
-void gemm_perf_test(){
+void hgemm_perf_test(){
     cublasHandle_t cublasH = NULL;
     CUBLAS_CHECK(cublasCreate(&cublasH));
     // 定义数组的大小
@@ -287,22 +302,6 @@ void gemm_perf_test(){
     std::vector<half> int4b_arrayA(M*K);
     std::vector<half> int4b_arrayB(K*N);
     std::vector<half> int32b_arrayC(M*N);
-
-
-    // // 初始化数组
-    // for (int i = 0; i < M; ++i) {
-    //     for(int j=0;j<K;j++){
-    //         // 将每个元素初始化为它的索引值，注意这里只是示例，实际值可能需要根据量化规则来确定
-    //         int4b_arrayA[i*K+j] = static_cast<half>(i*K+j);
-    //     }
-    // }
-    // for (int i = 0; i < K; ++i) {
-    //     for(int j=0;j<N;j++){
-    //         // 将每个元素初始化为它的索引值，注意这里只是示例，实际值可能需要根据量化规则来确定
-    //         int4b_arrayB[i*N+j] = static_cast<half>(j);
-    //     }
-    // }
-
 
     half* d_A;
     half* d_B;
@@ -335,11 +334,105 @@ void gemm_perf_test(){
 
 }
 
+void mslag2d(float *in, half *out,int size){
+    #pragma omp parallel for num_threads(max_omp_thread)
+    for(int i=0; i<size; i++){
+        out[i] = (half)in[i];
+    }
+}
+void mdlag2s(half *in, float *out,int size){
+    #pragma omp parallel for num_threads(max_omp_thread)
+    for(int i=0; i<size; i++){
+        out[i] = (float)in[i];
+    }
+}
+
+void hgemm_acc_test(){
+    cublasHandle_t cublasH = NULL;
+    CUBLAS_CHECK(cublasCreate(&cublasH));
+    // 定义数组的大小
+    int M=1024,N=1024,K=1024;
+    // 创建一个使用float类型的数组
+    std::vector<float> arrayA(M*K);
+    std::vector<float> arrayB(K*N);
+    std::vector<float> arrayC(M*N);
+    std::vector<float> arrayhfC(M*N);
+
+
+    generate_matrix<float>(arrayA.data(),M,K,'k');
+    generate_matrix<float>(arrayB.data(),K,N,'k');    
+
+
+    float* d_A;
+    float* d_B;
+    float* d_C;
+    float* d_C_TMP;
+    cudaMalloc((void**)&d_A, sizeof(float) * M*K);
+    cudaMalloc((void**)&d_B, sizeof(float) * K*N);
+    cudaMalloc((void**)&d_C, sizeof(float) * M*N);
+    cudaMalloc((void**)&d_C_TMP, sizeof(float) * M*N);
+    cudaMemcpy(d_A, arrayA.data(), sizeof(float) * M*K, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, arrayB.data(), sizeof(float) * K*N, cudaMemcpyHostToDevice);
+
+    float  beta = 0.0, alpha = 1.0;
+
+
+
+
+    cublas_gemm_rowmajor(
+        &cublasH, d_A, d_B, d_C, M, K,
+        K, N, alpha, beta);
+
+    cudaMemcpy( arrayC.data(),d_C, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+  
+
+    // 创建一个使用half类型的数组
+    std::vector<half> arrayhA(M*K);
+    std::vector<half> arrayhB(K*N);
+    std::vector<half> arrayhC(M*N);
+
+    mslag2d(arrayA.data(),arrayhA.data(),M*K);
+    mslag2d(arrayB.data(),arrayhB.data(),N*K);
+    // mslag2d(arrayC.data(),arrayhC.data(),M*N);
+
+
+    half* d_hA;
+    half* d_hB;
+    half* d_hC;
+    cudaMalloc((void**)&d_hA, sizeof(half) * M*K);
+    cudaMalloc((void**)&d_hB, sizeof(half) * K*N);
+    cudaMalloc((void**)&d_hC, sizeof(half) * M*N);
+    cudaMemcpy(d_hA, arrayhA.data(), sizeof(half) * M*K, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_hB, arrayhB.data(), sizeof(half) * K*N, cudaMemcpyHostToDevice);
+    
+
+    half  beta2 = 0.0, alpha2 = 1.0;    
+    cublas_gemm_rowmajor(
+        &cublasH, d_hA, d_hB, d_hC, M, K,
+        K, N, alpha2, beta2);
+    cudaDeviceSynchronize();
+
+    cudaMemcpy( arrayhC.data(),d_hC, sizeof(half) * M*N, cudaMemcpyDeviceToHost);
+  
+    // for (int i = 0; i < M; ++i) {
+    //     for(int j=0;j<N;j++){
+    //         printf("%f,",(float)(arrayhB[i*N+j]));
+    //     }
+    //     printf("\n");
+    // }
+
+    mdlag2s(arrayhC.data(),arrayhfC.data(),M*N);
+    float R3 = get_Ferror<float>(arrayC.data(),arrayhfC.data(),M,N); 
+
+    printf("%.7f\n",R3);
+}
+
+
 int main(){
     //axpy_perf_test();
     //gemv_acc_test();
     //gemm_acc_test();
     //gemm_acc_test2();
-    gemm_perf_test();
+    hgemm_acc_test();
     return 0;
 }
