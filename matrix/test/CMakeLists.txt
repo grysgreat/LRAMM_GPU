@@ -19,12 +19,17 @@ add_executable(lrxigemm_test
 add_executable(sketch_op_test
     ${CMAKE_CURRENT_SOURCE_DIR}/sketch_op_test.cu
 )
+
+add_executable(config_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/config_test.cu
+)
 target_link_libraries(operator_matrix_test -lcublas -lcurand -fopenmp)
 target_link_libraries(cublas_lib_test -lcublas -lcurand -fopenmp)
 target_link_libraries(cutlass_gemm_test -lcublas -lcurand -fopenmp)
 target_link_libraries(cusolver_test -lcusolver -lcudart -lcurand -lcublas -fopenmp)
 target_link_libraries(lrxigemm_test -lcusolver -lcudart -lcurand -lcublas -fopenmp)
 target_link_libraries(sketch_op_test -lcusolver -lcudart -lcurand -lcublas -fopenmp)
+target_link_libraries(config_test -lcusolver -lcudart -lcurand -lcublas -fopenmp)
 
 include_directories(${SOURCE_DIR}/matrix)
 
@@ -46,5 +51,9 @@ target_link_libraries(lrxigemm_test
     matrix
 )
 target_link_libraries(sketch_op_test
+    matrix
+)
+
+target_link_libraries(config_test
     matrix
 )
