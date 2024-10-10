@@ -351,6 +351,20 @@ void precision_test(){
     return;        
 }
 
+static void gpu_helper(std::string info, bool print_info=false) {
+    size_t free_byte;
+    size_t total_byte;
+    cudaError_t cuda_status = cudaMemGetInfo(&free_byte, &total_byte);
+    if (cudaSuccess != cuda_status) {
+        printf("Error: cudaMemGetInfo fails, %s \n", cudaGetErrorString(cuda_status));
+        exit(1);
+    }
+    double free_db = (double)free_byte;
+    double total_db = (double)total_byte;
+    double used_db = (total_db - free_db) / 1024.0 / 1024.0;
+    if (print_info)
+        std::cout << info << "   used GPU memory " << used_db << " MB   ,"<< "   total GPU memory " << total_byte/ 1024.0 / 1024.0 << " MB\n";
+}
 
 void performance_test(){
     int test_para[2048][5] = {
@@ -367,7 +381,9 @@ void performance_test(){
         {4096*2,4096*2,4096*2,1},
         {4096*3,4096*3,4096*3,1},
         {4096*4,4096*4,4096*4,1},
-        // {4096*5,4096*5,4096*5,1},
+        {4096*5,4096*5,4096*5,1},
+        {4096*6,4096*6,4096*6,1},
+        // {4096*7,4096*7,4096*7,1},
         // {16384,16384,16384,1},
 
 
@@ -404,7 +420,7 @@ void performance_test(){
     CUSOLVER_CHECK(cusolverDnCreate(&cusolverH));
     CUBLAS_CHECK(cublasCreate(&cublasH));
 
-    int max = 4096*4;
+    long long int max = 4096*6;
     float *matrixA = (float *)malloc(sizeof(float) * max*max);
     float *matrixB = (float *)malloc(sizeof(float) * max*max);
     float *matrixC = (float *)malloc(sizeof(float) * max*max);
@@ -412,15 +428,39 @@ void performance_test(){
     float *matrixR = (float *)malloc(sizeof(float) * max*max);
 
     char * work;
-    cudaMalloc((char **)&work, sizeof(float) * (max*max*6+max*5));
 
-    std::cout<<"M\tN\tK\trank\tSGEMM\t\torigin\t\tLrxigemm\tsketch\n";
     const int digit = 8;
     
     float *A_d, *B_d, *C_d;
-    generate_matrix<float>(matrixA,max,max,'u');
-    generate_matrix<float>(matrixB,max,max,'u');       
-    for(int i=0;i<6;i++){
+    // generate_matrix<float>(matrixA,max,max,'u');
+    // generate_matrix<float>(matrixB,max,max,'u');   
+
+    cudaMalloc((float **)&A_d, sizeof(float) * max*max);
+    cudaMalloc((float **)&B_d, sizeof(float) * max*max);
+    cudaMalloc((float **)&C_d, sizeof(float) * max*max);
+
+    // gpu_helper("GPU Memory Info", true);
+
+    cudaError_t status_work = cudaMalloc((char **)&work, sizeof(float) * (max*max*6+max*5));
+    
+    double wantsize = (double)(max*max*6+max*5)*4/(1024.0*1024.0);
+    std::cout<<"want size = "<<wantsize<<" MB\n"<<"max = "<<max*max<<"\n";
+    if (status_work == cudaSuccess) {
+        std::cout << "cudaMalloc succeeded!" << std::endl;
+    } else {
+        std::cerr << "cudaMalloc failed: " << cudaGetErrorString(status_work) << std::endl;
+        return ; // 返回错误码
+    }
+
+    cudaMemcpy(A_d, matrixA, sizeof(float) * max*max, cudaMemcpyHostToDevice);
+    cudaMemcpy(B_d, matrixB, sizeof(float) * max*max, cudaMemcpyHostToDevice);
+    cudaDeviceSynchronize();   
+
+    gpu_helper("GPU Memory Info", true);
+
+    std::cout<<"M\tN\tK\trank\tSGEMM\t\torigin\t\tLrxigemm\tsketch\t\tskecth-fusion\n";
+
+    for(int i=0;i<10;i++){
         
 
         int N=test_para[i][0],M=test_para[i][1],K=test_para[i][2];
@@ -428,12 +468,7 @@ void performance_test(){
 
         float alpha = 1.0, beta = 0.0;
         if(M==0) return;
-        cudaMalloc((float **)&A_d, sizeof(float) * M*K);
-        cudaMalloc((float **)&B_d, sizeof(float) * K*N);
-        cudaMalloc((float **)&C_d, sizeof(float) * M*N);
-        cudaMemcpy(A_d, matrixA, sizeof(float) * M*K, cudaMemcpyHostToDevice);
-        cudaMemcpy(B_d, matrixB, sizeof(float) * K*N, cudaMemcpyHostToDevice);
-        cudaDeviceSynchronize();
+
         std::cout<<M<<"\t"<<N<<"\t"<<K<<"\t"<<rank<<"\t";
 
         //计算float和int矩阵乘法得到结果矩阵
@@ -492,8 +527,7 @@ void performance_test(){
             double time  = diff.count();
             printf("%.7lf\n",time);
         }
-        cudaFree(A_d);cudaFree(B_d);cudaFree(C_d);
-
+        //gpu_helper("GPU Memory Info2", true);
     }
     return;        
 }
@@ -717,8 +751,8 @@ int main(){
     //skxigemm_acc();
     //curand_test();
     //sketch_acc_test();
-    // performance_test();
-    precision_test();
+     performance_test();
+    //precision_test();
 
     // nsys_perf_test();
     //xhgemm_acc();
