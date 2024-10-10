@@ -13,25 +13,43 @@ namespace fuseConfig{
         return deviceProp.name;
     }
 
+    void initConfig(std::string deviceName, std::ofstream *pfile){
+        //std::ofstream file = *pfile;
+        *pfile << deviceName <<"\n";
+
+        // gemm_test fp16 2048~32678
+    }
+
     Config::Config(){
         bool rebuild=false;
         std::string dir = "../../../config.dat";
 
         deviceName = getDeviceName();
 
-        std::ifstream configFile(dir);
-        if (!configFile.is_open()) {
+        std::ifstream rconfigFile(dir);
+        
+
+        if (!rconfigFile.is_open()) {
             printf("no config file, will build.\n");
             rebuild = true;
         } else {
             std::string configDeviceName;
-            std::getline(configFile, configDeviceName);
+            std::getline(rconfigFile, configDeviceName);
             if(configDeviceName.compare(deviceName)) {
+
+                printf("123\n %s \n%s \n",deviceName.c_str(),configDeviceName.c_str());
                 printf("device name not match, will rebuild.\n");
                 rebuild = true;
             }
         }
-        std::cout<<rebuild;
+        rconfigFile.close();
+
+        if(rebuild) {
+            std::ofstream wconfigFile(dir);
+            initConfig(deviceName, &wconfigFile);
+            wconfigFile.close();
+        }
+        
     }
 
 }
