@@ -294,149 +294,46 @@ void gemv_acc_test(){
 
 
 
-void performance_test(){
+void gemv_perf_test(){
     int test_para[2048][5] = {
-
-        // {2048,2048,2048,50},
-        // {2048,2048,2048,40},
-        // {2048,2048,2048,30},
-        // {2048,2048,2048,20},
-        // {2048,2048,2048,10},
-        // {2048,2048,2048,1},
-        // {16384,16384,16384,1},
-    {128,128},
-    {256,256},
-    {384,384},
-    {512,512},
-    {640,640},
-    {768,768},
-    {896,896},
-    {1024,1024},
-    {1152,1152},
-    {1280,1280},
-    {1408,1408},
-    {1536,1536},
-    {1664,1664},
-    {1792,1792},
-    {1920,1920},
-    {2048,2048},
-    {2176,2176},
-    {2304,2304},
-    {2432,2432},
-    {2560,2560},
-    {2688,2688},
-    {2816,2816},
-    {2944,2944},
-    {3072,3072},
-    {3200,3200},
-    {3328,3328},
-    {3456,3456},
-    {3584,3584},
-    {3712,3712},
-    {3840,3840},
-    {3968,3968},
-    {4096,4096},
-    {4224,4224},
-    {4352,4352},
-    {4480,4480},
-    {4608,4608},
-    {4736,4736},
-    {4864,4864},
-    {4992,4992},
-    {5120,5120},
-    {5248,5248},
-    {5376,5376},
-    {5504,5504},
-    {5632,5632},
-    {5760,5760},
-    {5888,5888},
-    {6016,6016},
-    {6144,6144},
-    {6272,6272},
-    {6400,6400},
-    {6528,6528},
-    {6656,6656},
-    {6784,6784},
-    {6912,6912},
-    {7040,7040},
-    {7168,7168},
-    {7296,7296},
-    {7424,7424},
-    {7552,7552},
-    {7680,7680},
-    {7808,7808},
-    {7936,7936},
-    {8064,8064},
-    {8192,8192},
-    {8320,8320},
-    {8448,8448},
-    {8576,8576},
-    {8704,8704},
-    {8832,8832},
-    {8960,8960},
-    {9088,9088},
-    {9216,9216},
-    {9344,9344},
-    {9472,9472},
-    {9600,9600},
-    {9728,9728},
-    {9856,9856},
-    {9984,9984},
-    {10112,10112},
-    {10240,10240},
-    {10368,10368},
-    {10496,10496},
-    {10624,10624},
-    {10752,10752},
-    {10880,10880},
-    {11008,11008},
-    {11136,11136},
-    {11264,11264},
-    {11392,11392},
-    {11520,11520},
-    {11648,11648},
-    {11776,11776},
-    {11904,11904},
-    {12032,12032},
-    {12160,12160},
-    {12288,12288},
-    {12416,12416},
-    {12544,12544},
-    {12672,12672},
-    {12800,12800},
-    {12928,12928},
-    {13056,13056},
-    {13184,13184},
-    {13312,13312},
-    {13440,13440},
-    {13568,13568},
-    {13696,13696},
-    {13824,13824},
-    {13952,13952},
-    {14080,14080},
-    {14208,14208},
-    {14336,14336},
-    {14464,14464},
-    {14592,14592},
-    {14720,14720},
-    {14848,14848},
-    {14976,14976},
-    {15104,15104},
-    {15232,15232},
-    {15360,15360},
-    {15488,15488},
-    {15616,15616},
-    {15744,15744},
-    {15872,15872},
-    {16000,16000},
-    {16128,16128},
-    {16256,16256},
+        {1024,1024},
+        {2048,2048},
+        {3072,3072},
+        {4096,4096},
+        {5120,5120},
+        {6144,6144},
+        {7168,7168},
+        {8192,8192},
+        {9216,9216},
+        {10240,10240},
+        {11264,11264},
+        {12288,12288},
+        {13312,13312},
+        {14336,14336},
+        {15360,15360},
+        {16384,16384},
+        {17408,17408},
+        {18432,18432},
+        {19456,19456},
+        {20480,20480},
+        {21504,21504},
+        {22528,22528},
+        {23552,23552},
+        {24576,24576},
+        {25600,25600},
+        {26624,26624},
+        {27648,27648},
+        {28672,28672},
+        {29696,29696},
+        {30720,30720},
+        {31744,31744},
+        {32768,32768},
         }; 
   
     cublasHandle_t cublasH = NULL;
     CUBLAS_CHECK(cublasCreate(&cublasH));
 
-    int max = 4096*4;
+    int max = 4096*8;
     float *matrixA = (float *)malloc(sizeof(float) * max*max);
     float *matrixB = (float *)malloc(sizeof(float) * max*max);
     float *matrixC = (float *)malloc(sizeof(float) * max*max);
@@ -455,7 +352,7 @@ void performance_test(){
     cudaMalloc((float **)&C_d, sizeof(float) * max);
     cudaMemcpy(A_d, matrixA, sizeof(float) * max*max, cudaMemcpyHostToDevice);
     cudaMemcpy(B_d, matrixB, sizeof(float) * max, cudaMemcpyHostToDevice);    
-    for(int i=0;i<128;i++){
+    for(int i=0;i<32;i++){
 
         int N=test_para[i][0],M=test_para[i][1];
         
@@ -485,43 +382,90 @@ void performance_test(){
 
 
 void hgemm_perf_test(){
+
+    int test_para[2048][3] = {
+        {1024,1024,1024},
+        {2048,2048,2048},
+        {3072,3072,3072},
+        {4096,4096,4096},
+        {5120,5120,5120},
+        {6144,6144,6144},
+        {7168,7168,7168},
+        {8192,8192,8192},
+        {9216,9216,9216},
+        {10240,10240,10240},
+        {11264,11264,11264},
+        {12288,12288,12288},
+        {13312,13312,13312},
+        {14336,14336,14336},
+        {15360,15360,15360},
+        {16384,16384,16384},
+        {17408,17408,17408},
+        {18432,18432,18432},
+        {19456,19456,19456},
+        {20480,20480,20480},
+        {21504,21504,21504},
+        {22528,22528,22528},
+        {23552,23552,23552},
+        {24576,24576,24576},
+        {25600,25600,25600},
+        {26624,26624,26624},
+        {27648,27648,27648},
+        {28672,28672,28672},
+        {29696,29696,29696},
+        {30720,30720,30720},
+        {31744,31744,31744},
+        {32768,32768,32768},
+    }; 
+
     cublasHandle_t cublasH = NULL;
     CUBLAS_CHECK(cublasCreate(&cublasH));
     // 定义数组的大小
-    int M=8192,N=8192,K=8192;
+
+    int max = 4096*8;
     // 创建一个使用float类型的数组
-    std::vector<half> int4b_arrayA(M*K);
-    std::vector<half> int4b_arrayB(K*N);
-    std::vector<half> int32b_arrayC(M*N);
+    std::vector<half> int4b_arrayA(max*max);
+    std::vector<half> int4b_arrayB(max*max);
+    std::vector<half> int32b_arrayC(max*max);
 
     half* d_A;
     half* d_B;
     half* d_C;
-    cudaMalloc((void**)&d_A, sizeof(half) * M*K);
-    cudaMalloc((void**)&d_B, sizeof(half) * K*N);
-    cudaMalloc((void**)&d_C, sizeof(half) * M*N);
-    cudaMemcpy(d_A, int4b_arrayA.data(), sizeof(half) * M*K, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_B, int4b_arrayB.data(), sizeof(half) * K*N, cudaMemcpyHostToDevice);
+    cudaMalloc((void**)&d_A, sizeof(half) * max*max);
+    cudaMalloc((void**)&d_B, sizeof(half) * max*max);
+    cudaMalloc((void**)&d_C, sizeof(half) * max*max);
+    cudaMemcpy(d_A, int4b_arrayA.data(), sizeof(half) * max*max, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, int4b_arrayB.data(), sizeof(half) * max*max, cudaMemcpyHostToDevice);
 
     float beta = 0.0, alpha = 1.0;
 
+    for(int i=0;i<32;i++){
+        
 
-    cublas_gemm_rowmajor(
-        &cublasH, d_A, d_B, d_C, M, K,
-        K, N, alpha, beta);
+        int N=test_para[i][0],M=test_para[i][1],K=test_para[i][2];
+        float alpha = 1.0, beta = 0.0;
+        if(M==0) return;
 
-    auto start = std::chrono::high_resolution_clock::now();
-    cublas_gemm_rowmajor(
-        &cublasH, d_A, d_B, d_C, M, K,
-        K, N, alpha, beta);
-    cudaDeviceSynchronize();
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> diff = end - start;
-    double time  = diff.count();
-    std::cout<< std::fixed << std::setprecision(6) << time << "\n";
- 
+        std::cout<<M<<"\t"<<N<<"\t"<<K<<"\t";
 
+        //计算float和int矩阵乘法得到结果矩阵
+        cublas_gemm_rowmajor(
+            &cublasH, d_A, d_B, d_C, M, K,
+            K, N, alpha, beta);
+        {
+            auto start = std::chrono::high_resolution_clock::now();
+            cublas_gemm_rowmajor(
+                &cublasH, d_A, d_B, d_C, M, K,
+                K, N, alpha, beta);
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double, std::milli> diff = end - start;
+            double time  = diff.count();
+            printf("%.7lf\n",time);
+            cudaDeviceSynchronize();
+        }
 
+    }
+    return;        
 
 }
 
@@ -625,6 +569,9 @@ int main(){
     //gemm_acc_test();
     //gemm_acc_test2();
     //hgemm_acc_test();
-    performance_test();
+
+    gemv_perf_test();
+    hgemm_perf_test();
+    //performance_test();
     return 0;
 }
