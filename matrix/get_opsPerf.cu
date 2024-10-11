@@ -67,18 +67,32 @@ namespace fuseConfig{
 
     void test_read_level3(int size , std::ifstream *pfile, std::vector<float> *data){
         std::string line;
+        int cnt=0;
         for(int i=0;i<size*size;i++){
-            std::cout<<line<<"\n";
+            
             std::getline(*pfile, line);
             std::istringstream iss(line);
             float value;
 
             while (iss >> value) {
-                (*data).push_back(value);
+                (*data)[cnt++] = value;
             }
         }
     }
+    void test_read_level2(int size , std::ifstream *pfile, std::vector<float> *data){
+        std::string line;
+        int cnt=0;
+        for(int i=0;i<size;i++){
+            
+            std::getline(*pfile, line);
+            std::istringstream iss(line);
+            float value;
 
+            while (iss >> value) {
+                (*data)[cnt++] = value;
+            }
+        }
+    }
 
     template <typename TA, typename TB>
     void test_write_level2(long long int max_size, int stride, std::ofstream *pfile, calculation_type type){
@@ -142,8 +156,8 @@ namespace fuseConfig{
         *pfile << "\n";
         test_write_level2<float, float>(max_size, stride, pfile, calculation_type::SGEMV);
         *pfile << "\n";
-        test_write_level2<float, float>(max_size, stride, pfile, calculation_type::SGEMV_TRANS);
-        *pfile << "\n";
+        // test_write_level2<float, float>(max_size, stride, pfile, calculation_type::SGEMV_TRANS);
+        // *pfile << "\n";
         test_write_level2<float, int8_t>(max_size, stride, pfile, calculation_type::QUANT);
         // gemm_test fp16 2048~32678
     }
@@ -154,7 +168,10 @@ namespace fuseConfig{
         test_read_level3(size , pfile, &PerfHGemm);
         std::getline(*pfile, tmp);
         test_read_level3(size , pfile, &PerfI8Gemm);
-
+        std::getline(*pfile, tmp);
+        test_read_level2(size , pfile, &PerfSGemv);
+        std::getline(*pfile, tmp);
+        test_read_level2(size , pfile, &PerfQuant);
     }
 
     Config::Config(){
