@@ -1,3 +1,6 @@
+#ifndef CUBLAS_LIB_H
+#define CUBLAS_LIB_H
+
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
@@ -54,9 +57,6 @@ void cublas_gemm_rowmajor(
 void cublas_gemm_rowmajor(
     cublasHandle_t *cublashandler, half *d_A, half *d_B, half *d_C, int rowA, int colA,
     int rowB, int colB, half alpha, half beta){
-
-
-
     CUBLAS_CHECK(cublasGemmEx(*cublashandler, CUBLAS_OP_N, CUBLAS_OP_N, 
                     colB, rowA, rowB, &alpha,
                     d_B,CUDA_R_16F, colB, 
@@ -176,3 +176,4 @@ void cublas_scopy(cublasHandle_t *cublashandler, float *d_in, float *d_out, int 
 }
 
 #endif
+#endif //SRC_PW_STRESS_MULTI_DEVICE_H
