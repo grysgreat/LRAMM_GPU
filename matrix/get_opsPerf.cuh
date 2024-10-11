@@ -6,10 +6,16 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include <sstream>
 #include "./cublas/cublas_utils.h"
-enum calculation_type
+enum class calculation_type
 {
-    Te
+    SGEMM,
+    HGEMM,
+    I8GEMM,
+    SGEMV,
+    SGEMV_TRANS,
+    QUANT
 };
 
 namespace fuseConfig{
@@ -19,12 +25,16 @@ namespace fuseConfig{
             Config();
             Config(std::string condigDir);
 
+            void initConfig(std::string deviceName, std::ofstream *pfile);
+            void readConfig(std::ifstream *pfile);
+
+
             std::string deviceName;
             int memSize;
-            float *PerfHGemm;
-            float *PerfI8Gemm;
-            float *PerfQuant;
-            float *PerfSGemv;
+            std::vector<float> PerfHGemm;
+            std::vector<float> PerfI8Gemm;
+            std::vector<float> PerfQuant;
+            std::vector<float> PerfSGemv;
     
     };
 

@@ -1,13 +1,14 @@
 // get performance of gemm(f16,i8,i4), gemv(f32), quant
 #include "get_opsPerf.cuh"
 #include "cutlass_gemm_op.cuh"
+#include "operator_matrix.cuh"
 /**
  * default config direction is ../config.dat
  */
 
 namespace fuseConfig{
     #include "cublas/cublas_lib.cuh"
-
+    
     std::string getDeviceName(){
         cudaDeviceProp deviceProp;
         cudaError_t error_id = cudaGetDeviceProperties(&deviceProp, 0);
@@ -16,7 +17,7 @@ namespace fuseConfig{
     }
 
     template <typename TAB, typename TC>
-    void test_gemm(long long int max_size, int stride, std::ofstream *pfile, char type){
+    void test_write_level3(long long int max_size, int stride, std::ofstream *pfile, calculation_type type){
 
         cublasHandle_t cublasH = NULL;
         cublasCreate(&cublasH);
@@ -32,7 +33,7 @@ namespace fuseConfig{
             for (int n = 2048; n <= max_size; n+=stride) {
                 for (int k = 2048; k <= max_size; k+=stride) {
                     std::chrono::duration<double, std::milli> diff;
-                    if( type == 'I'){
+                    if( type == calculation_type::I8GEMM){
                         cut_gemm((int8_t *)d_A, (int8_t *)d_B, (int32_t *)d_C,m, k, k, n);
                         cudaDeviceSynchronize();
                         auto start = std::chrono::high_resolution_clock::now();
@@ -40,7 +41,7 @@ namespace fuseConfig{
                         cudaDeviceSynchronize();
                         auto end = std::chrono::high_resolution_clock::now();
                         diff = end - start;
-                    } else if(type == 'H'){
+                    } else if(type == calculation_type::HGEMM){
                         cublas_gemm_rowmajor(
                             &cublasH, (half *)d_A, (half *)d_B, (half *)d_C, m, k,
                             k, n, alphah, betah);
@@ -64,19 +65,92 @@ namespace fuseConfig{
         cudaFree(d_C);
     }
 
-    
-    void initConfig(std::string deviceName, std::ofstream *pfile){
+    template <typename TAB, typename TC>
+    void test_read_level3(int size , std::ifstream *pfile, std::vector<float> *data){
+        std::string line;
+        for(int i=0;i<size*size;i++){
+            std::getline(*pfile, line);
+            std::istringstream iss(line);
+            float value;
+
+            while (iss >> value) {
+                (*data).push_back(value);
+            }
+        }
+    }
+
+
+    template <typename TA, typename TB>
+    void test_write_level2(long long int max_size, int stride, std::ofstream *pfile, calculation_type type){
+
+        cublasHandle_t cublasH = NULL;
+        cublasCreate(&cublasH);
+
+        TA* d_A;
+        TB* d_B;
+        TB* d_C;
+        cudaMalloc((void**)&d_A, sizeof(TA) * max_size*max_size);
+        cudaMalloc((void**)&d_B, sizeof(TB) * max_size*max_size);
+        cudaMalloc((void**)&d_C, sizeof(TB) * max_size*max_size);
+        float alpha = 1.0, beta = 0.0;
+        for (int m = 2048; m <= max_size; m+=stride) {
+            for (int n = 2048; n <= max_size; n+=stride) {
+
+                std::chrono::duration<double, std::milli> diff;
+                if( type == calculation_type::QUANT){
+                    quantitize_int8((float *)d_A, (int8_t *)d_B, m, n, alpha);
+                    cudaDeviceSynchronize();
+                    auto start = std::chrono::high_resolution_clock::now();
+                    quantitize_int8((float *)d_A, (int8_t *)d_B, m, n, alpha);
+                    cudaDeviceSynchronize();
+                    auto end = std::chrono::high_resolution_clock::now();
+                    diff = end - start;
+                } else if(type == calculation_type::SGEMV){
+                    cublas_gemv_rowmajor( &cublasH,(float *)d_A, (float *)d_B, (float *)d_C, m, n, alpha, beta);
+                    cudaDeviceSynchronize();
+                    auto start = std::chrono::high_resolution_clock::now();
+                    cublas_gemv_rowmajor( &cublasH,(float *)d_A, (float *)d_B, (float *)d_C, m, n, alpha, beta);
+                    cudaDeviceSynchronize();
+                    auto end = std::chrono::high_resolution_clock::now();
+                    diff = end - start;
+                } else if(type == calculation_type::SGEMV_TRANS){
+                    cublas_gemv_rowmajor_trans( &cublasH,(float *)d_A, (float *)d_B, (float *)d_C, m, n, alpha, beta);
+                    cudaDeviceSynchronize();
+                    auto start = std::chrono::high_resolution_clock::now();
+                    cublas_gemv_rowmajor_trans( &cublasH,(float *)d_A, (float *)d_B, (float *)d_C, m, n, alpha, beta);
+                    cudaDeviceSynchronize();
+                    auto end = std::chrono::high_resolution_clock::now();
+                    diff = end - start;
+                }
+                double time  = diff.count();
+                *pfile << time << " ";
+            }
+            *pfile << "\n";
+        }
+        cudaFree(d_A);
+        cudaFree(d_B);
+        cudaFree(d_C);
+    }
+
+    void Config::initConfig(std::string deviceName, std::ofstream *pfile){
         //std::ofstream file = *pfile;
         *pfile << deviceName <<"\n";
         std::vector<float> runtime(16*16*16);
         long long int max_size = 4096*4;
         int stride = 2048;
-        test_gemm<half, half>(max_size, stride, pfile, 'H');
+        test_write_level3<half, half>(max_size, stride, pfile, calculation_type::HGEMM);
         *pfile << "\n";
-        test_gemm<int8_t, int32_t>(max_size, stride, pfile, 'I');
-
-
+        test_write_level3<int8_t, int32_t>(max_size, stride, pfile, calculation_type::I8GEMM);
+        *pfile << "\n";
+        test_write_level2<float, float>(max_size, stride, pfile, calculation_type::SGEMV);
+        *pfile << "\n";
+        test_write_level2<float, float>(max_size, stride, pfile, calculation_type::SGEMV_TRANS);
+        *pfile << "\n";
+        test_write_level2<float, int8_t>(max_size, stride, pfile, calculation_type::QUANT);
         // gemm_test fp16 2048~32678
+    }
+    void Config::readConfig(std::ifstream *pfile){
+
     }
 
     Config::Config(){
@@ -109,6 +183,7 @@ namespace fuseConfig{
             wconfigFile.close();
         }
         
+        //readConfig();
     }
 
 }
