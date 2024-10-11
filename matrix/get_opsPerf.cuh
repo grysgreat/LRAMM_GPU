@@ -28,7 +28,8 @@ namespace fuseConfig{
             void initConfig(std::string deviceName, std::ofstream *pfile);
             void readConfig(std::ifstream *pfile);
 
-
+            long long int max_size = 4096*4;
+            int stride = 2048;
             std::string deviceName;
             int memSize;
             std::vector<float> PerfHGemm;

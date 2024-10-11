@@ -65,10 +65,10 @@ namespace fuseConfig{
         cudaFree(d_C);
     }
 
-    template <typename TAB, typename TC>
     void test_read_level3(int size , std::ifstream *pfile, std::vector<float> *data){
         std::string line;
         for(int i=0;i<size*size;i++){
+            std::cout<<line<<"\n";
             std::getline(*pfile, line);
             std::istringstream iss(line);
             float value;
@@ -136,8 +136,6 @@ namespace fuseConfig{
         //std::ofstream file = *pfile;
         *pfile << deviceName <<"\n";
         std::vector<float> runtime(16*16*16);
-        long long int max_size = 4096*4;
-        int stride = 2048;
         test_write_level3<half, half>(max_size, stride, pfile, calculation_type::HGEMM);
         *pfile << "\n";
         test_write_level3<int8_t, int32_t>(max_size, stride, pfile, calculation_type::I8GEMM);
@@ -150,6 +148,12 @@ namespace fuseConfig{
         // gemm_test fp16 2048~32678
     }
     void Config::readConfig(std::ifstream *pfile){
+        std::getline(*pfile, deviceName);
+        std::string tmp;
+        int size = max_size/stride;
+        test_read_level3(size , pfile, &PerfHGemm);
+        std::getline(*pfile, tmp);
+        test_read_level3(size , pfile, &PerfI8Gemm);
 
     }
 
@@ -157,8 +161,13 @@ namespace fuseConfig{
         bool rebuild=false;
         std::string dir = "../../../config.dat";
         
+        int size = max_size/stride;
+        PerfHGemm.resize(size*size*size);
+        PerfI8Gemm.resize(size*size*size);
+        PerfQuant.resize(size*size);
+        PerfSGemv.resize(size*size);
+                
         deviceName = getDeviceName();
-
         std::ifstream rconfigFile(dir);
         
 
@@ -182,8 +191,10 @@ namespace fuseConfig{
             initConfig(deviceName, &wconfigFile);
             wconfigFile.close();
         }
-        
-        //readConfig();
+
+        std::ifstream rconfigFile2(dir);
+        readConfig(&rconfigFile2);
+        rconfigFile2.close();
     }
 
 }
