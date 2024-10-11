@@ -1,11 +1,13 @@
 // get performance of gemm(f16,i8,i4), gemv(f32), quant
 #include "get_opsPerf.cuh"
+#include "cutlass_gemm_op.cuh"
 /**
  * default config direction is ../config.dat
  */
 
 namespace fuseConfig{
     #include "cublas/cublas_lib.cuh"
+
     std::string getDeviceName(){
         cudaDeviceProp deviceProp;
         cudaError_t error_id = cudaGetDeviceProperties(&deviceProp, 0);
@@ -13,41 +15,66 @@ namespace fuseConfig{
         return deviceProp.name;
     }
 
-    void initConfig(std::string deviceName, std::ofstream *pfile){
-        //std::ofstream file = *pfile;
-        *pfile << deviceName <<"\n";
-        std::vector<float> runtime(16*16*16);
+    template <typename TAB, typename TC>
+    void test_gemm(long long int max_size, int stride, std::ofstream *pfile, char type){
 
         cublasHandle_t cublasH = NULL;
         cublasCreate(&cublasH);
 
-        long long int max_size = 4096*8;
-        half* d_A;
-        half* d_B;
-        half* d_C;
-        cudaMalloc((void**)&d_A, sizeof(half) * max_size*max_size);
-        cudaMalloc((void**)&d_B, sizeof(half) * max_size*max_size);
-        cudaMalloc((void**)&d_C, sizeof(half) * max_size*max_size);
-
-        half alpha = 1.0, beta = 0.0;
-        for (int m = 2048; m <= 8*2048; m+=2048) {
-            for (int n = 2048; n <= 8*2048; n+=2048) {
-                for (int k = 2048; k <= 8*2048; k+=2048) {
-                    cublas_gemm_rowmajor(
-                        &cublasH, d_A, d_B, d_C, m, k,
-                        k, n, alpha, beta);
-                    auto start = std::chrono::high_resolution_clock::now();
-                    cublas_gemm_rowmajor(
-                        &cublasH, d_A, d_B, d_C, m, k,
-                        k, n, alpha, beta);
-                    auto end = std::chrono::high_resolution_clock::now();
-                    std::chrono::duration<double, std::milli> diff = end - start;
+        TAB* d_A;
+        TAB* d_B;
+        TC* d_C;
+        cudaMalloc((void**)&d_A, sizeof(TAB) * max_size*max_size);
+        cudaMalloc((void**)&d_B, sizeof(TAB) * max_size*max_size);
+        cudaMalloc((void**)&d_C, sizeof(TC) * max_size*max_size);
+        TC alphah = 1.0, betah = 0.0;
+        for (int m = 2048; m <= max_size; m+=stride) {
+            for (int n = 2048; n <= max_size; n+=stride) {
+                for (int k = 2048; k <= max_size; k+=stride) {
+                    std::chrono::duration<double, std::milli> diff;
+                    if( type == 'I'){
+                        cut_gemm((int8_t *)d_A, (int8_t *)d_B, (int32_t *)d_C,m, k, k, n);
+                        cudaDeviceSynchronize();
+                        auto start = std::chrono::high_resolution_clock::now();
+                        cut_gemm((int8_t *)d_A, (int8_t *)d_B, (int32_t *)d_C,m, k, k, n);
+                        cudaDeviceSynchronize();
+                        auto end = std::chrono::high_resolution_clock::now();
+                        diff = end - start;
+                    } else if(type == 'H'){
+                        cublas_gemm_rowmajor(
+                            &cublasH, (half *)d_A, (half *)d_B, (half *)d_C, m, k,
+                            k, n, alphah, betah);
+                        cudaDeviceSynchronize();
+                        auto start = std::chrono::high_resolution_clock::now();
+                        cublas_gemm_rowmajor(
+                            &cublasH, (half *)d_A, (half *)d_B, (half *)d_C, m, k,
+                            k, n, alphah, betah);
+                        cudaDeviceSynchronize();
+                        auto end = std::chrono::high_resolution_clock::now();
+                        diff = end - start;
+                    }
                     double time  = diff.count();
                     *pfile << time << " ";
                 }
                 *pfile << "\n";
             }
         }
+        cudaFree(d_A);
+        cudaFree(d_B);
+        cudaFree(d_C);
+    }
+
+    
+    void initConfig(std::string deviceName, std::ofstream *pfile){
+        //std::ofstream file = *pfile;
+        *pfile << deviceName <<"\n";
+        std::vector<float> runtime(16*16*16);
+        long long int max_size = 4096*4;
+        int stride = 2048;
+        test_gemm<half, half>(max_size, stride, pfile, 'H');
+        *pfile << "\n";
+        test_gemm<int8_t, int32_t>(max_size, stride, pfile, 'I');
+
 
         // gemm_test fp16 2048~32678
     }
