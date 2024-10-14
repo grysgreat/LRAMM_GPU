@@ -810,3 +810,75 @@ void skxigemm_mem_fusion(
 
     return;
 }
+
+
+
+void skxhgemm(
+    half *A_d, half *B_d, float *C_d, float *RA, float *RB,  float *PA_d, float *PB_d, 
+    int rowsA, int colsA, int rowsB, int colsB, int rank, cublasHandle_t *cublashandler) {
+
+    rank = 1;
+
+    /*Step 0. prepare Handle and stream*/
+    cublasHandle_t cublasH = *cublashandler;
+    cudaStream_t stream = NULL;
+    CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
+    CUBLAS_CHECK(cublasSetStream(cublasH, stream));
+
+    float  beta = 0.0, alpha = 1.0;
+    cublas_gemm_rowmajor(
+        &cublasH, A_d, B_d, C_d, rowsA, colsA,
+        rowsB, colsB, alpha, beta);    
+
+    float *AL_d, *AR_d, *BL_d, *BR_d, *tmp_d;
+    int maxlen = max(max(rowsB,max(rowsA,colsA)),colsB);
+    cudaMalloc((float **)&AL_d, sizeof(float) * rowsA );
+    cudaMalloc((float **)&AR_d, sizeof(float) * colsA);
+    cudaMalloc((float **)&BL_d, sizeof(float) * rowsB);
+    cudaMalloc((float **)&BR_d, sizeof(float) * colsB);
+    cudaMalloc((float **)&tmp_d, sizeof(float) * maxlen);
+
+    curandGenerator_t gen;
+    sketch_r1( RA, AL_d, AR_d,rowsA, colsA, &gen,cublashandler);
+    sketch_r1( RB, BL_d, BR_d,rowsB, colsB, &gen,cublashandler);
+
+    beta = 0.0;
+    alpha = 1.0;
+
+//begin full size correct
+    cublas_gemm_rowmajor(
+        &cublasH, AR_d, PB_d, tmp_d,  rank,  colsA,
+        rowsB,  colsB, alpha,  beta);
+    beta = 1.0;
+    cublas_gemm_rowmajor(
+        &cublasH, AL_d, tmp_d, C_d,  rowsA,  rank,
+        rank,  colsB, alpha,  beta);
+    beta = 0.0;
+    cublas_gemm_rowmajor(
+        &cublasH, PA_d, BL_d, tmp_d,  rowsA,  colsA,
+        rowsB,  rank, alpha,  beta);
+    beta = 1.0;
+    cublas_gemm_rowmajor(
+        &cublasH, tmp_d, BR_d, C_d,  rowsA,  rank,
+        rank,  colsB, alpha,  beta);
+    beta = 0.0;
+    cublas_gemm_rowmajor(
+        &cublasH, RA, BL_d, tmp_d,  rowsA,  colsA,
+        rowsB,  rank, alpha,  beta);
+    beta = 1.0;
+    cublas_gemm_rowmajor(
+        &cublasH, tmp_d, BR_d, C_d,  rowsA,  rank,
+        rank,  colsB, alpha,  beta);
+
+    // beta = 1.0;
+    // cublas_gemm_rowmajor(
+    //     &cublasH, RA, PB_d, C_d,  rowsA,  colsA,
+    //     rowsB,  colsB, alpha,  beta);
+    // cublas_gemm_rowmajor(
+    //     &cublasH, PA_d, RB, C_d,  rowsA,  colsA,
+    //     rowsB,  colsB, alpha,  beta);
+    // cublas_gemm_rowmajor(
+    //     &cublasH, RA, RB, C_d,  rowsA,  colsA,
+    //     rowsB,  colsB, alpha,  beta);
+    return;
+}

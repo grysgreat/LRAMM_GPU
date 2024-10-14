@@ -70,6 +70,25 @@ void cublas_gemm_rowmajor(
     cudaDeviceSynchronize();
 }
 
+void cublas_gemm_rowmajor(
+    cublasHandle_t *cublashandler, half *d_A, half *d_B, float *d_C, int rowA, int colA,
+    int rowB, int colB, float alpha, float beta){
+
+    CUBLAS_CHECK(cublasGemmEx(*cublashandler, CUBLAS_OP_N, CUBLAS_OP_N, 
+                    colB, rowA, rowB, &alpha,
+                    d_B,CUDA_R_16F, colB, 
+                    d_A, CUDA_R_16F, rowB, &beta, 
+                    d_C, CUDA_R_32F, colB, 
+                    CUBLAS_COMPUTE_32F , 
+                    CUBLAS_GEMM_ALGO0_TENSOR_OP 
+                ));
+
+
+    cudaDeviceSynchronize();
+}
+
+
+
 void cublas_gemv_rowmajor(
     cublasHandle_t *cublashandler, float *d_A, float *d_x,
      float *d_y, int rowA, int colA, float alpha, float beta){
