@@ -259,7 +259,7 @@ void precision_test(){
     float *matrixCQ = (float *)malloc(sizeof(float) * max*max);
     float *matrixR = (float *)malloc(sizeof(float) * max*max);
 
-    std::cout<<"M\tN\tK\ttype\trank\torigin\t\tLrxigemm\tsketch\t\tsketch_fu\thgemm\n";
+    std::cout<<"M\tN\tK\ttype\trank\torigin\t\tLrxigemm\tsketch\t\tsketch_fu\thgemm\t\tsketch_before\n";
     const int digit = 8;
     char * work;
     cudaMalloc((char **)&work, sizeof(float) * (max*max*8+max*5));
@@ -323,8 +323,8 @@ void precision_test(){
             printf("%.7f\t",R3);
         }
         {
-            //skxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
-            skxigemm_mem<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cusolverH, &cublasH);
+            skxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
+            //skxigemm_mem<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cusolverH, &cublasH);
             cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
             float R3 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
@@ -340,6 +340,15 @@ void precision_test(){
         }
         {
             shgemm(A_d,B_d,C_d,M,K,K,N,&cublasH);
+            cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
+            cudaDeviceSynchronize();
+            float R3 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
+
+            printf("%.7f\t",R3);
+
+        }
+        {
+            skxigemm_before<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
             cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
             float R3 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
@@ -757,12 +766,89 @@ void mslag2h_withR(float *in, half *out, float *res, float *pin,int size){
     }
 }
 
+union FloatUnion {
+    float value;
+    uint32_t bits;
+};
+
+union HalfUnion {
+    uint16_t bits;
+    struct {
+        uint16_t mantissa : 10;
+        uint16_t exponent : 5;
+        uint16_t sign : 1;
+    } parts;
+    half value;
+};
+
+half floatToFloorHalf(float a) {
+    FloatUnion fu;
+    fu.value = a;
+
+    uint32_t sign = (fu.bits >> 31) & 0x1;             // 提取符号位
+    uint32_t exponent = (fu.bits >> 23) & 0xFF;        // 提取指数位
+    uint32_t mantissa = fu.bits & 0x7FFFFF;            // 提取尾数位
+
+    if (exponent == 0 && mantissa == 0) {
+        // 处理零的情况
+        return 0;
+    }
+
+    if (exponent == 0xFF) {
+        // 处理无穷大或NaN的情况
+        if (mantissa == 0) {
+            return (sign ? 0x7FFF : 0x7C00);  // 无穷大
+        } else {
+            return 0x7FFF;  // NaN
+        }
+    }
+
+    // 调整指数位
+    int newExponent = static_cast<int>(exponent) - 127 + 15;
+
+    // 处理指数溢出
+    if (newExponent >= 31) {
+        // 指数溢出，结果为无穷大
+        return (sign ? 0x7FFF : 0x7C00);
+    } else if (newExponent <= 0) {
+        // 指数下溢，结果为零
+        return 0;
+    }
+
+    // 调整尾数位
+    uint32_t newMantissa = mantissa >> 13;  // 尾数右移13位，因为half的尾数位是10位
+    uint32_t remainingBits = mantissa & 0x1FFF;  // 剩余的13位
+
+    // 确保尾数位的舍入不会导致 b 大于 a
+    // if (remainingBits > 0) {
+    //     // 如果剩余部分大于0，进行向下取整
+    //     newMantissa -= 1;
+    // }
+
+    // 组合成half
+    uint16_t halfBits = (sign << 15) | (newExponent << 10) | static_cast<uint16_t>(newMantissa);
+
+    HalfUnion hu;
+    hu.bits = halfBits;
+    return hu.value;
+}
+
+
+void mslag2h_withR2(float *in, half *out, float *res, float *pin,int size){
+    #pragma omp parallel for num_threads(max_omp_thread)
+    for(int i=0; i<size; i++){
+        out[i] = floatToFloorHalf(in[i]);
+        if((float)out[i]!=(float)out[i]) out[i] = ((half)in[i]);
+        res[i] = in[i] - (float)out[i];
+        pin[i] = (float)out[i];
+    }
+}
 
 void sketchhgemm_acc_test(){
     cublasHandle_t cublasH = NULL;
     CUBLAS_CHECK(cublasCreate(&cublasH));
     // 定义数组的大小
-    int M=128,N=128,K=128;
+    int M=1024,N=1024,K=1024;
     // 创建一个使用float类型的数组
     std::vector<float> arrayA(M*K);
     std::vector<float> arrayB(K*N);
@@ -770,8 +856,8 @@ void sketchhgemm_acc_test(){
     std::vector<float> arrayhfC(M*N);
 
 
-    generate_matrix<float>(arrayA.data(),M,K,'u');
-    generate_matrix<float>(arrayB.data(),K,N,'u');    
+    generate_matrix<float>(arrayA.data(),M,K,'k');
+    generate_matrix<float>(arrayB.data(),K,N,'k');    
 
 
     float* d_A;
@@ -807,11 +893,11 @@ void sketchhgemm_acc_test(){
     std::vector<float> arrayhC(M*N);
 
 
-    mslag2h_withR(arrayA.data(),arrayhA.data(), arrayhRA.data(),arrayhPA.data(),M*K);
-    mslag2h_withR(arrayB.data(),arrayhB.data(), arrayhRB.data(),arrayhPB.data(),N*K);
+    mslag2h_withR2(arrayA.data(),arrayhA.data(), arrayhRA.data(),arrayhPA.data(),M*K);
+    mslag2h_withR2(arrayB.data(),arrayhB.data(), arrayhRB.data(),arrayhPB.data(),N*K);
     // mslag2d(arrayC.data(),arrayhC.data(),M*N);
 
-    for(int i=0;i<10;i++){
+    for(int i=0;i<32;i++){
         printf("%.8f,%.8f,%.8f,%.8f,%.12f\n",arrayA[i],(float)arrayhA[i],arrayhPA[i],arrayhRA[i],(arrayhPA[i]-(float)arrayhA[i]));
     }
 
@@ -898,19 +984,213 @@ void sketchhgemm_acc_test(){
 
         printf("%.7f\n",R3);
     }
+
+    
+    mslag2h_withR(arrayA.data(),arrayhA.data(), arrayhRA.data(),arrayhPA.data(),M*K);
+    mslag2h_withR(arrayB.data(),arrayhB.data(), arrayhRB.data(),arrayhPB.data(),N*K);
+    cudaMemcpy(d_hA, arrayhA.data(), sizeof(half) * M*K, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_hB, arrayhB.data(), sizeof(half) * K*N, cudaMemcpyHostToDevice);
+    
+    cudaMemcpy(d_hRA, arrayhRA.data(), sizeof(float) * M*K, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_hRB, arrayhRB.data(), sizeof(float) * K*N, cudaMemcpyHostToDevice);
+
+    cudaMemcpy(d_hPA, arrayhPA.data(), sizeof(float) * M*K, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_hPB, arrayhPB.data(), sizeof(float) * K*N, cudaMemcpyHostToDevice);
+
+    for(int i=0;i<32;i++){
+        printf("%.8f,%.8f,%.8f,%.8f,%.12f\n",arrayA[i],(float)arrayhA[i],arrayhPA[i],arrayhRA[i],(arrayhPA[i]-(float)arrayhA[i]));
+    }
+    {
+        float  beta2 = 0.0, alpha2 = 1.0;    
+        skxhgemm(
+        d_hA, d_hB, d_hC, d_hRA, d_hRB,  d_hPA, d_hPB, 
+        M, K, K, N, 1, &cublasH);
+
+        cudaDeviceSynchronize();
+
+        cudaMemcpy( arrayhfC.data(),d_hC, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+
+        // for (int i = 0; i < M; ++i) {
+        //     for(int j=0;j<N;j++){
+        //         printf("%f,",(float)(arrayhB[i*N+j]));
+        //     }
+        //     printf("\n");
+        // }
+        float R3 = get_Ferror<float>(arrayC.data(),arrayhfC.data(),M,N); 
+
+        printf("%.7f\n",R3);
+    }
+    {
+        float  beta2 = 0.0, alpha2 = 1.0;    
+        cublas_gemm_rowmajor(
+        &cublasH, d_hA, d_hB, d_hC, M, K,
+        K, N, alpha2, beta2);
+        cudaDeviceSynchronize();
+
+        cudaMemcpy( arrayhfC.data(),d_hC, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+
+        // for (int i = 0; i < M; ++i) {
+        //     for(int j=0;j<N;j++){
+        //         printf("%f,",(float)(arrayhB[i*N+j]));
+        //     }
+        //     printf("\n");
+        // }
+        float R3 = get_Ferror<float>(arrayC.data(),arrayhfC.data(),M,N); 
+
+        printf("%.7f\n",R3);
+    }
 }
 
 
+void sketchhgemm_acc_test2(){
+    cublasHandle_t cublasH = NULL;
+    CUBLAS_CHECK(cublasCreate(&cublasH));
+    // 定义数组的大小
+    int M=16,N=16,K=16;
+    // 创建一个使用float类型的数组
+    std::vector<float> arrayA(M*K);
+    std::vector<float> arrayB(K*N);
+    std::vector<float> arrayC(M*N);
+    std::vector<float> arrayhfC(M*N);
+
+
+    generate_matrix<float>(arrayA.data(),M,K,'u');
+    generate_matrix<float>(arrayB.data(),K,N,'u');    
+
+
+    float* d_A;
+    float* d_B;
+    float* d_C;
+    float* d_C_TMP;
+    cudaMalloc((void**)&d_A, sizeof(float) * M*K);
+    cudaMalloc((void**)&d_B, sizeof(float) * K*N);
+    cudaMalloc((void**)&d_C, sizeof(float) * M*N);
+    cudaMalloc((void**)&d_C_TMP, sizeof(float) * M*N);
+    cudaMemcpy(d_A, arrayA.data(), sizeof(float) * M*K, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, arrayB.data(), sizeof(float) * K*N, cudaMemcpyHostToDevice);
+
+    float  beta = 0.0, alpha = 1.0;
+
+
+
+
+    cublas_gemm_rowmajor(
+        &cublasH, d_A, d_B, d_C, M, K,
+        K, N, alpha, beta);
+
+    cudaMemcpy( arrayC.data(),d_C, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+  
+
+    // 创建一个使用half类型的数组
+    std::vector<half> arrayhA(M*K);
+    std::vector<half> arrayhB(K*N);
+    std::vector<float> arrayhRA(M*K);
+    std::vector<float> arrayhRB(K*N);
+    std::vector<float> arrayhPA(M*K);
+    std::vector<float> arrayhPB(K*N);
+    std::vector<float> arrayhC(M*N);
+
+
+    mslag2h_withR(arrayA.data(),arrayhA.data(), arrayhRA.data(),arrayhPA.data(),M*K);
+    mslag2h_withR(arrayB.data(),arrayhB.data(), arrayhRB.data(),arrayhPB.data(),N*K);
+    // mslag2d(arrayC.data(),arrayhC.data(),M*N);
+
+
+    half* d_hA;
+    half* d_hB;
+    float* d_hC;
+    float* d_hRA;
+    float* d_hPA;
+    float* d_hRB;
+    float* d_hPB;
+
+
+    cudaMalloc((void**)&d_hA, sizeof(half) * M*K);
+    cudaMalloc((void**)&d_hB, sizeof(half) * K*N);
+    cudaMalloc((void**)&d_hRA, sizeof(float) * M*K);
+    cudaMalloc((void**)&d_hPA, sizeof(float) * M*K);
+    cudaMalloc((void**)&d_hRB, sizeof(float) * K*N);
+    cudaMalloc((void**)&d_hPB, sizeof(float) * K*N);
+    cudaMalloc((void**)&d_hC, sizeof(float) * M*N);
+    cudaMemcpy(d_hA, arrayhA.data(), sizeof(half) * M*K, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_hB, arrayhB.data(), sizeof(half) * K*N, cudaMemcpyHostToDevice);
+    
+    cudaMemcpy(d_hRA, arrayhRA.data(), sizeof(float) * M*K, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_hRB, arrayhRB.data(), sizeof(float) * K*N, cudaMemcpyHostToDevice);
+
+    cudaMemcpy(d_hPA, arrayhPA.data(), sizeof(float) * M*K, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_hPB, arrayhPB.data(), sizeof(float) * K*N, cudaMemcpyHostToDevice);
+  
+    {
+        float  beta2 = 0.0, alpha2 = 1.0;    
+        skxhgemm(
+        d_hA, d_hB, d_hC, d_hRA, d_hRB,  d_hPA, d_hPB, 
+        M, K, K, N, 1, &cublasH);
+
+        cudaDeviceSynchronize();
+
+        cudaMemcpy( arrayhfC.data(),d_hC, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+
+        // for (int i = 0; i < M; ++i) {
+        //     for(int j=0;j<N;j++){
+        //         printf("%f,",(float)(arrayhB[i*N+j]));
+        //     }
+        //     printf("\n");
+        // }
+        float R3 = get_Ferror<float>(arrayC.data(),arrayhfC.data(),M,N); 
+
+        printf("%.7f\n",R3);
+    }
+    {
+        float  beta2 = 0.0, alpha2 = 1.0;    
+        cublas_gemm_rowmajor(
+        &cublasH, d_hA, d_hB, d_hC, M, K,
+        K, N, alpha2, beta2);
+        cudaDeviceSynchronize();
+
+        cudaMemcpy( arrayhfC.data(),d_hC, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+
+        // for (int i = 0; i < M; ++i) {
+        //     for(int j=0;j<N;j++){
+        //         printf("%f,",(float)(arrayhB[i*N+j]));
+        //     }
+        //     printf("\n");
+        // }
+        float R3 = get_Ferror<float>(arrayC.data(),arrayhfC.data(),M,N); 
+
+        printf("%.7f\n",R3);
+    }
+    {
+        float  beta2 = 0.0, alpha2 = 1.0;    
+        cublas_gemm_rowmajor(
+        &cublasH, d_hPA, d_hPB, d_hC, M, K,
+        K, N, alpha2, beta2);
+        cudaDeviceSynchronize();
+
+        cudaMemcpy( arrayhfC.data(),d_hC, sizeof(float) * M*N, cudaMemcpyDeviceToHost);
+
+        // for (int i = 0; i < M; ++i) {
+        //     for(int j=0;j<N;j++){
+        //         printf("%f,",(float)(arrayhB[i*N+j]));
+        //     }
+        //     printf("\n");
+        // }
+        float R3 = get_Ferror<float>(arrayC.data(),arrayhfC.data(),M,N); 
+
+        printf("%.7f\n",R3);
+    }
+}
 int main(){
     //skxigemm_acc();
     //curand_test();
     //sketch_acc_test();
     //  performance_test();
-    //precision_test();
+    precision_test();
 
     // nsys_perf_test();
     //xhgemm_acc();
     //compare_print_test();
 
-    sketchhgemm_acc_test();
+    //sketchhgemm_acc_test();
+    //sketchhgemm_acc_test2();
 }

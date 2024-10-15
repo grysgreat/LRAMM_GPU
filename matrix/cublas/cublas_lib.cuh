@@ -79,7 +79,7 @@ void cublas_gemm_rowmajor(
                     d_B,CUDA_R_16F, colB, 
                     d_A, CUDA_R_16F, rowB, &beta, 
                     d_C, CUDA_R_32F, colB, 
-                    CUBLAS_COMPUTE_32F , 
+                    CUBLAS_COMPUTE_32F_PEDANTIC , 
                     CUBLAS_GEMM_ALGO0_TENSOR_OP 
                 ));
 
