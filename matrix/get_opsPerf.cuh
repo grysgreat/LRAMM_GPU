@@ -13,6 +13,7 @@ enum class calculation_type
     SGEMM,
     HGEMM,
     I8GEMM,
+    I4GEMM,
     SGEMV,
     SGEMV_TRANS,
     QUANT
@@ -34,6 +35,7 @@ namespace fuseConfig{
             int memSize;
             std::vector<float> PerfHGemm;
             std::vector<float> PerfI8Gemm;
+            std::vector<float> PerfI4Gemm;
             std::vector<float> PerfQuant;
             std::vector<float> PerfSGemv;
     

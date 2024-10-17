@@ -1184,7 +1184,7 @@ int main(){
     //skxigemm_acc();
     //curand_test();
     //sketch_acc_test();
-    //  performance_test();
+    performance_test();
     precision_test();
 
     // nsys_perf_test();

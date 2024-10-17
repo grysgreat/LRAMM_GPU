@@ -41,6 +41,14 @@ namespace fuseConfig{
                         cudaDeviceSynchronize();
                         auto end = std::chrono::high_resolution_clock::now();
                         diff = end - start;
+                    } else if(type == calculation_type::I4GEMM){
+                        cut_gemm4((cutlass::int4b_t *)d_A, (cutlass::int4b_t *)d_B, (int32_t *)d_C,m, k, k, n);
+                        cudaDeviceSynchronize();
+                        auto start = std::chrono::high_resolution_clock::now();
+                        cut_gemm4((cutlass::int4b_t *)d_A, (cutlass::int4b_t *)d_B, (int32_t *)d_C,m, k, k, n);
+                        cudaDeviceSynchronize();
+                        auto end = std::chrono::high_resolution_clock::now();
+                        diff = end - start;
                     } else if(type == calculation_type::HGEMM){
                         cublas_gemm_rowmajor(
                             &cublasH, (half *)d_A, (half *)d_B, (half *)d_C, m, k,
@@ -154,6 +162,8 @@ namespace fuseConfig{
         *pfile << "\n";
         test_write_level3<int8_t, int32_t>(max_size, stride, pfile, calculation_type::I8GEMM);
         *pfile << "\n";
+        test_write_level3<cutlass::int4b_t, int32_t>(max_size, stride, pfile, calculation_type::I4GEMM);
+        *pfile << "\n";
         test_write_level2<float, float>(max_size, stride, pfile, calculation_type::SGEMV);
         *pfile << "\n";
         // test_write_level2<float, float>(max_size, stride, pfile, calculation_type::SGEMV_TRANS);
@@ -169,6 +179,8 @@ namespace fuseConfig{
         std::getline(*pfile, tmp);
         test_read_level3(size , pfile, &PerfI8Gemm);
         std::getline(*pfile, tmp);
+        test_read_level3(size , pfile, &PerfI4Gemm);
+        std::getline(*pfile, tmp);
         test_read_level2(size , pfile, &PerfSGemv);
         std::getline(*pfile, tmp);
         test_read_level2(size , pfile, &PerfQuant);
@@ -176,11 +188,12 @@ namespace fuseConfig{
 
     Config::Config(){
         bool rebuild=false;
-        std::string dir = "../../../config.dat";
+        std::string dir = "./config.dat";
         
         int size = max_size/stride;
         PerfHGemm.resize(size*size*size);
         PerfI8Gemm.resize(size*size*size);
+        PerfI4Gemm.resize(size*size*size);
         PerfQuant.resize(size*size);
         PerfSGemv.resize(size*size);
                 

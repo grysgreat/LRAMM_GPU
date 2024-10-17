@@ -686,7 +686,7 @@ int main(){
 
     // gemv_perf_test();
     // hgemm_perf_test();
-    //performance_test();
+    hgemm_perf_test();
 
     hgemm1616_acc_test();
     hgemm1632_acc_test();

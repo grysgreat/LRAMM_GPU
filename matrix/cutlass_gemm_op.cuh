@@ -94,77 +94,154 @@ using LayoutInputA = cutlass::layout::RowMajor;
 using LayoutInputB = cutlass::layout::ColumnMajor;
 using LayoutOutput = cutlass::layout::RowMajor;
 
-//-------------full precision CUDA core (PASS) --------------------
-#if BIT_WIDTH == 32
+// //-------------full precision CUDA core (PASS) --------------------
+// #if BIT_WIDTH == 32
 
-using Element = float;
+// using Element = float;
 
-using Gemm = cutlass::gemm::device::Gemm<
-  Element, 
-  cutlass::layout::RowMajor,
-  Element, 
-  cutlass::layout::ColumnMajor,
-  Element,
-  cutlass::layout::RowMajor, 
-  Element,
-  cutlass::arch::OpClassSimt, 
-  cutlass::arch::Sm80,
-  cutlass::gemm::GemmShape<32, 64, 8>,
-  cutlass::gemm::GemmShape<32, 64, 8>, 
-  cutlass::gemm::GemmShape<1, 1, 1>,
-  cutlass::epilogue::thread::LinearCombination<
-      Element, 
-      1,
-      Element, 
-      Element>,
-  cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>, 
-  4
->;
+// using Gemm = cutlass::gemm::device::Gemm<
+//   Element, 
+//   cutlass::layout::RowMajor,
+//   Element, 
+//   cutlass::layout::ColumnMajor,
+//   Element,
+//   cutlass::layout::RowMajor, 
+//   Element,
+//   cutlass::arch::OpClassSimt, 
+//   cutlass::arch::Sm80,
+//   cutlass::gemm::GemmShape<32, 64, 8>,
+//   cutlass::gemm::GemmShape<32, 64, 8>, 
+//   cutlass::gemm::GemmShape<1, 1, 1>,
+//   cutlass::epilogue::thread::LinearCombination<
+//       Element, 
+//       1,
+//       Element, 
+//       Element>,
+//   cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>, 
+//   4
+// >;
 
 
-//-------------half precision Tensor core (PASS) --------------------
-#elif BIT_WIDTH == 16
+// //-------------half precision Tensor core (PASS) --------------------
+// #elif BIT_WIDTH == 16
 
-using ElementOutput = cutlass::half_t;
-using ElementAccumulator = cutlass::half_t;
+// using ElementOutput = cutlass::half_t;
+// using ElementAccumulator = cutlass::half_t;
 
-using Gemm = cutlass::gemm::device::Gemm<
-  cutlass::half_t,
-  cutlass::layout::RowMajor,
-  cutlass::half_t,
-  cutlass::layout::ColumnMajor,
-  ElementOutput,
-  cutlass::layout::RowMajor,
-  ElementAccumulator,
-  cutlass::arch::OpClassTensorOp,
-  cutlass::arch::Sm80,
-  cutlass::gemm::GemmShape<64, 64, 64>,
-  cutlass::gemm::GemmShape<64, 32, 32>,
-  cutlass::gemm::GemmShape<16, 8, 8>,
-  cutlass::epilogue::thread::LinearCombination<
-    ElementOutput,
-    64 / cutlass::sizeof_bits<ElementOutput>::value,
-    ElementAccumulator,
-    ElementAccumulator
-  >,
-  cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>,
-  2
->;
+// using Gemm = cutlass::gemm::device::Gemm<
+//   cutlass::half_t,
+//   cutlass::layout::RowMajor,
+//   cutlass::half_t,
+//   cutlass::layout::ColumnMajor,
+//   ElementOutput,
+//   cutlass::layout::RowMajor,
+//   ElementAccumulator,
+//   cutlass::arch::OpClassTensorOp,
+//   cutlass::arch::Sm80,
+//   cutlass::gemm::GemmShape<64, 64, 64>,
+//   cutlass::gemm::GemmShape<64, 32, 32>,
+//   cutlass::gemm::GemmShape<16, 8, 8>,
+//   cutlass::epilogue::thread::LinearCombination<
+//     ElementOutput,
+//     64 / cutlass::sizeof_bits<ElementOutput>::value,
+//     ElementAccumulator,
+//     ElementAccumulator
+//   >,
+//   cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>,
+//   2
+// >;
 
-//-------------INT-8 Tensor core (PASS) --------------------
-#elif BIT_WIDTH == 8
+// //-------------INT-8 Tensor core (PASS) --------------------
+// #elif BIT_WIDTH == 8
+
+// using ElementOutput = int32_t;
+// using ElementAccumulator = int32_t;
+// using ElementCompute = int32_t;
+
+// using Gemm = cutlass::gemm::device::Gemm<
+//     int8_t, cutlass::layout::RowMajor, 
+//     int8_t, cutlass::layout::ColumnMajor, 
+//     ElementOutput, cutlass::layout::RowMajor,
+//     ElementAccumulator, 
+//     cutlass::arch::OpClassTensorOp, 
+//     cutlass::arch::Sm80,
+//     cutlass::gemm::GemmShape<128, 256, 64>,
+//     cutlass::gemm::GemmShape<64, 64, 64>, 
+//     cutlass::gemm::GemmShape<8, 8, 16>,
+//     cutlass::epilogue::thread::LinearCombinationClamp<
+//         ElementOutput, 128 / cutlass::sizeof_bits<ElementOutput>::value,
+//         ElementAccumulator, ElementCompute>,
+//     cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>, 2>;
+
+
+// //-------------INT-4 Tensor core (PASS) --------------------
+// #elif BIT_WIDTH == 4
+
+// using ElementOutput = int32_t;
+// using ElementAccumulator = int32_t;
+// using ElementCompute = int32_t;
+
+// using Gemm = cutlass::gemm::device::Gemm<
+//   cutlass::int4b_t,
+//   cutlass::layout::RowMajor,
+//   cutlass::int4b_t,
+//   cutlass::layout::ColumnMajor,
+//   ElementOutput,
+//   cutlass::layout::RowMajor,
+//   ElementAccumulator,
+//   cutlass::arch::OpClassTensorOp,
+//   cutlass::arch::Sm75,
+//   cutlass::gemm::GemmShape<128, 256, 128>,
+//   cutlass::gemm::GemmShape<64, 64, 128>,
+//   cutlass::gemm::GemmShape<8, 8, 32>,
+//   cutlass::epilogue::thread::LinearCombinationClamp<
+//     ElementOutput,
+//     128 / cutlass::sizeof_bits<ElementOutput>::value,
+//     ElementAccumulator,
+//     ElementCompute
+//   >,
+//   cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>,
+//   2
+// >;
+
+// //-------------INT-1 Tensor core (PASS)--------------------
+// #elif BIT_WIDTH == 1
+//     using ElementOutput = int32_t;
+//     using ElementAccumulator = int32_t;
+//     using ElementCompute = int32_t;
+//     const int pipe_stages = 4;
+
+//     using Gemm = cutlass::gemm::device::Gemm<
+//     cutlass::uint1b_t, cutlass::layout::RowMajor, 
+//     cutlass::uint1b_t, cutlass::layout::ColumnMajor, 
+//     ElementOutput, cutlass::layout::RowMajor,
+//     ElementAccumulator, cutlass::arch::OpClassTensorOp, cutlass::arch::Sm80,
+//     // RTX3090 setting for block, warp, and mma shape
+//     cutlass::gemm::GemmShape<128, 256, 512>,
+//     cutlass::gemm::GemmShape<64, 64, 512>, 
+//     cutlass::gemm::GemmShape<8, 8, 128>,
+//     // A100 setting for block, warp, and mma shape
+//     // cutlass::gemm::GemmShape<256, 128, 1024>,
+//     // cutlass::gemm::GemmShape<64, 64, 1024>, 
+//     // cutlass::gemm::GemmShape<16, 8, 256>,
+//     cutlass::epilogue::thread::LinearCombination<
+//         ElementOutput, 128 / cutlass::sizeof_bits<ElementOutput>::value,
+//         ElementAccumulator, ElementCompute>,
+//     cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>, pipe_stages, 128, 128,
+//     false, cutlass::arch::OpXorPopc>;
+    
+// #endif
 
 using ElementOutput = int32_t;
 using ElementAccumulator = int32_t;
 using ElementCompute = int32_t;
-
 using Gemm = cutlass::gemm::device::Gemm<
     int8_t, cutlass::layout::RowMajor, 
     int8_t, cutlass::layout::ColumnMajor, 
     ElementOutput, cutlass::layout::RowMajor,
     ElementAccumulator, 
     cutlass::arch::OpClassTensorOp, 
-    cutlass::arch::Sm75,
+    cutlass::arch::Sm80,
     cutlass::gemm::GemmShape<128, 256, 64>,
     cutlass::gemm::GemmShape<64, 64, 64>, 
     cutlass::gemm::GemmShape<8, 8, 16>,
@@ -173,66 +250,46 @@ using Gemm = cutlass::gemm::device::Gemm<
         ElementAccumulator, ElementCompute>,
     cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>, 2>;
 
+  using Gemm4 = cutlass::gemm::device::Gemm<
+      cutlass::int4b_t,                // ElementA
+      cutlass::layout::RowMajor,       // LayoutA
+      cutlass::int4b_t,                // ElementB
+      cutlass::layout::ColumnMajor,    // LayoutB
+      int32_t,                         // ElementOutput
+      cutlass::layout::RowMajor,       // LayoutOutput
+      int32_t,                         // ElementAccumulator
+      cutlass::arch::OpClassTensorOp,  // tag indicating Tensor Cores
+      cutlass::arch::Sm80  // tag indicating target GPU compute architecture
+      >;
+// using Gemm4 = cutlass::gemm::device::Gemm<
+//   cutlass::int4b_t,
+//   cutlass::layout::RowMajor,
+//   cutlass::int4b_t,
+//   cutlass::layout::ColumnMajor,
+//   ElementOutput,
+//   cutlass::layout::RowMajor,
+//   ElementAccumulator,
+//   cutlass::arch::OpClassTensorOp,
+//   cutlass::arch::Sm80,
+//   cutlass::gemm::GemmShape<128, 256, 128>,
+//   cutlass::gemm::GemmShape<64, 64, 128>,
+//   cutlass::gemm::GemmShape<8, 8, 32>,
+//   cutlass::epilogue::thread::LinearCombinationClamp<
+//     ElementOutput,
+//     128 / cutlass::sizeof_bits<ElementOutput>::value,
+//     ElementAccumulator,
+//     ElementCompute
+//   >,
+//   cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>,
+//   2
+// >;
 
-//-------------INT-4 Tensor core (PASS) --------------------
-#elif BIT_WIDTH == 4
-
-using ElementOutput = int32_t;
-using ElementAccumulator = int32_t;
-using ElementCompute = int32_t;
-
-using Gemm = cutlass::gemm::device::Gemm<
-  cutlass::int4b_t,
-  cutlass::layout::RowMajor,
-  cutlass::int4b_t,
-  cutlass::layout::ColumnMajor,
-  ElementOutput,
-  cutlass::layout::RowMajor,
-  ElementAccumulator,
-  cutlass::arch::OpClassTensorOp,
-  cutlass::arch::Sm75,
-  cutlass::gemm::GemmShape<128, 256, 128>,
-  cutlass::gemm::GemmShape<64, 64, 128>,
-  cutlass::gemm::GemmShape<8, 8, 32>,
-  cutlass::epilogue::thread::LinearCombinationClamp<
-    ElementOutput,
-    128 / cutlass::sizeof_bits<ElementOutput>::value,
-    ElementAccumulator,
-    ElementCompute
-  >,
-  cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>,
-  2
->;
-
-//-------------INT-1 Tensor core (PASS)--------------------
-#elif BIT_WIDTH == 1
-    using ElementOutput = int32_t;
-    using ElementAccumulator = int32_t;
-    using ElementCompute = int32_t;
-    const int pipe_stages = 4;
-
-    using Gemm = cutlass::gemm::device::Gemm<
-    cutlass::uint1b_t, cutlass::layout::RowMajor, 
-    cutlass::uint1b_t, cutlass::layout::ColumnMajor, 
-    ElementOutput, cutlass::layout::RowMajor,
-    ElementAccumulator, cutlass::arch::OpClassTensorOp, cutlass::arch::Sm80,
-    // RTX3090 setting for block, warp, and mma shape
-    cutlass::gemm::GemmShape<128, 256, 512>,
-    cutlass::gemm::GemmShape<64, 64, 512>, 
-    cutlass::gemm::GemmShape<8, 8, 128>,
-    // A100 setting for block, warp, and mma shape
-    // cutlass::gemm::GemmShape<256, 128, 1024>,
-    // cutlass::gemm::GemmShape<64, 64, 1024>, 
-    // cutlass::gemm::GemmShape<16, 8, 256>,
-    cutlass::epilogue::thread::LinearCombination<
-        ElementOutput, 128 / cutlass::sizeof_bits<ElementOutput>::value,
-        ElementAccumulator, ElementCompute>,
-    cutlass::gemm::threadblock::GemmIdentityThreadblockSwizzle<>, pipe_stages, 128, 128,
-    false, cutlass::arch::OpXorPopc>;
-    
-#endif
-
+void I4trans(cutlass::int4b_t *odata, cutlass::int4b_t *idata,int rows,int cols);
 
 void cut_gemm(input_t *A, input_t* B, output_t* C,int rowA,int colA, int rowB,int colB);
 
 void cut_gemm_workspace(input_t *A, input_t* B, output_t* C,input_t* workspace,int rowA,int colA, int rowB,int colB);
+
+void cut_gemm4(cutlass::int4b_t *A, cutlass::int4b_t* B, int32_t* C,int rowA,int colA, int rowB,int colB);
+
+void cut_gemm_workspace4(cutlass::int4b_t *A, cutlass::int4b_t* B, int32_t* C,cutlass::int4b_t* workspace,int rowA,int colA, int rowB,int colB);
