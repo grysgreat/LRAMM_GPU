@@ -7,6 +7,9 @@ float min_abs(float* d_array,float* d_work,float* c_work, int size);
 
 float avg_abs(float* d_array,float* d_work,float* c_work, int size);
 
+float avg_(float* d_array,float* d_work,float* c_work, int size);
+
+
 void max_abs_vec(float* d_array,float* d_work,float* c_work,float* output, int rows, int cols,char type);
 
 void min_abs_vec(float* d_array,float* d_work,float* c_work,float* output, int rows, int cols,char type);
@@ -16,6 +19,7 @@ void avg_abs_vec(float* d_array,float* d_work,float* c_work,float* output, int r
 void strans(float *odata, float *idata,int rows,int cols);
 
 void quantitize_int8(float * matrix_in,int8_t * matrix_out,int nx,int ny,float lambda);
+void quantitize_int8_near(float * matrix_in,int8_t * matrix_out,int nx,int ny,float lambda);
 
 void dequantitize_int8(int8_t * matrix_in,float * matrix_out,int nx,int ny,float lambda);
 void quantitize_getR_int8(float * matrix_in,int8_t * matrix_out, float * matrix_P, float * matrix_R, int nx,int ny,float lambda);
@@ -68,3 +72,7 @@ void I8trans(int8_t *odata, int8_t *idata,int rows,int cols);
 float get_Sum_sq2(float* d_array,float* d_work,float* c_work, int size);
 
 void s_axnoy(float * matrix_in,float * matrix_out,int lenth, float alpha);
+
+void s_xminusa(float * matrix_in,float * matrix_out,int lenth, float alpha);
+
+void s_span(float * matrix_out,int lenth, float alpha);

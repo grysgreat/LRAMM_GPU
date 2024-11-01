@@ -81,7 +81,7 @@ void sketch_r1(
     float *Q;
     float *US;
     float *ATSketch_tmp;
-    const int iter = 1;
+    const int iter = 8;
 
     cudaMalloc((void**)&Sketch, sizeof(float) * colsA);
     cudaMalloc((void**)&B, sizeof(float) * colsA);

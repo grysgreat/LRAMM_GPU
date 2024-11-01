@@ -212,7 +212,6 @@ void precision_test(){
         // {2048,2048,2048,20},
         // {2048,2048,2048,10},
         {1024,1024,1024,10,'n'},
-        {1024,1024,1024,10,'n'},
         {1024,1024,1024,10,'u'},
         {1024,1024,1024,10,'s'},
         {1024,1024,1024,10,'e'},
@@ -282,6 +281,13 @@ void precision_test(){
         } else {
             generate_matrix<float>(matrixA,M,K,type);
             generate_matrix<float>(matrixB,K,N,type);            
+        }
+
+        if(type=='n') {
+            matrixA[10]=24.1;
+            matrixA[20]=14.1;
+            matrixA[1020]=4.1;
+            matrixA[1020]=35.1;
         }
         cudaMalloc((float **)&A_d, sizeof(float) * M*K);
         cudaMalloc((float **)&B_d, sizeof(float) * K*N);
@@ -353,8 +359,18 @@ void precision_test(){
             cudaDeviceSynchronize();
             float R3 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
 
-            printf("%.7f\n",R3);
+            printf("%.7f\t",R3);
+        }
 
+        {
+            xigemm_AVG<float,8>(A_d,B_d,C_d,M,K,K,N);
+            cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
+            cudaDeviceSynchronize();
+            float R2 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
+            printf("%.7f\n",R2);
+            // for(int k=0;k<40;k++){
+            //     printf("%f, ",matrixCQ[k]);
+            // }
         }
     }
     return;        
@@ -1180,12 +1196,69 @@ void sketchhgemm_acc_test2(){
         printf("%.7f\n",R3);
     }
 }
+
+void max_sig_test(){
+    cublasHandle_t cublasH = NULL;
+    CUBLAS_CHECK(cublasCreate(&cublasH));
+    // 定义数组的大小
+    int M=1024,N=1024,K=1024;
+    // 创建一个使用float类型的数组
+    std::vector<float> arrayA(M*K);
+    std::vector<float> arrayA2(M*K);
+    std::vector<float> arrayRA(M*K);
+    generate_matrix<float>(arrayA.data(),M,K,'n');
+    arrayA[10]=24.1;
+    arrayA[2]=14.1;
+
+    // print_Matrix(arrayA.data(),M,K);
+    float* d_A;
+    float* d_RA;
+    float* d_A2;
+    float* AL_d;
+    float* AR_d;    
+    cudaMalloc((void**)&d_A, sizeof(float) * M*K);
+    cudaMalloc((void**)&d_RA, sizeof(float) * M*K);
+    cudaMalloc((void**)&d_A2, sizeof(float) * M*K);
+    cudaMemcpy(d_A, arrayA.data(), sizeof(float) * M*K, cudaMemcpyHostToDevice);
+
+    float  beta = 0.0, alpha = 1.0;
+
+    for(int i=0;i<1;i++){
+        float max_mA0 = cublas_absmax(&cublasH, d_A, M*K);
+        printf("\n max A = %f \n",max_mA0);
+        cudaMalloc((float **)&AL_d, sizeof(float) * M );
+        cudaMalloc((float **)&AR_d, sizeof(float) * K);
+        curandGenerator_t gen;
+        sketch_r1( d_A, AL_d, AR_d,M, K, &gen,&cublasH);
+
+        cublas_gemm_rowmajor(
+            &cublasH, AL_d, AR_d, d_A2,  M,  1,
+            1,  K, alpha,  beta);
+
+        cudaMemcpy( arrayA2.data(),d_A2, sizeof(float) * M*K, cudaMemcpyDeviceToHost);
+
+        // printf("\n\n\n");
+        // print_Matrix(arrayA2.data(),M,K);
+
+
+        cudaMemcpy(d_RA, d_A, M*K * sizeof(float), cudaMemcpyDeviceToDevice);
+        alpha = -1.0;
+        cublas_saxpy(d_A2, d_RA ,alpha, M*K, cublasH);
+
+        cudaMemcpy( arrayRA.data(),d_RA, sizeof(float) * M*K, cudaMemcpyDeviceToHost);
+        // printf("\n\n\n");
+        // print_Matrix(arrayRA.data(),M,K);
+        float max_mA = cublas_absmax(&cublasH, d_RA, M*K);
+        printf("\n max a_bdef = %f \n",max_mA);
+    }
+}
+
 int main(){
     //skxigemm_acc();
     //curand_test();
     //sketch_acc_test();
-    performance_test();
-    precision_test();
+    //performance_test();
+    //precision_test();
 
     // nsys_perf_test();
     //xhgemm_acc();
@@ -1193,4 +1266,6 @@ int main(){
 
     //sketchhgemm_acc_test();
     //sketchhgemm_acc_test2();
+
+    max_sig_test();
 }

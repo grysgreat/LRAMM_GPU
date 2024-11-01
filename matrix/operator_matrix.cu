@@ -183,6 +183,36 @@ __global__ void sum_abs_in_array(float *g_idata, float *g_odata, int n) {
         g_odata[blockIdx.x] = sdata[0];
     }
 }
+
+// CUDA kernel to compute the abs sum of elements in an array
+__global__ void sum_in_array(float *g_idata, float *g_odata, int n) {
+    // define an array in shared memory
+    // the size of the array is determined by the number of threads
+    extern __shared__ float sdata[];
+
+    // get thread id
+    unsigned int tid = threadIdx.x;
+    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    // boundary check
+    if (i < n) {
+        sdata[tid] = g_idata[i]; // copy data from global mem to shared mem
+    }
+    __syncthreads(); // make sure all data is loaded into shared mem
+
+    // do reduction in shared memory
+    for (unsigned int s = blockDim.x / 2; s > 0; s >>= 1) {
+        if (tid < s && (i + s) < n) {
+            sdata[tid] = (sdata[tid])+(sdata[tid + s]);
+        }
+        __syncthreads(); // make sure all adds at one stage are done!
+    }
+
+    // only thread 0 writes result back to global memory
+    if (tid == 0) {
+        g_odata[blockIdx.x] = sdata[0];
+    }
+}
 // CUDA kernel to compute the abs sum of elements in an array
 __global__ void sum_sq2_in_array(float *g_idata, float *g_odata, int n) {
     // define an array in shared memory
@@ -253,6 +283,17 @@ __global__ void quantitize_cuda_int8(float * matrix_in,int8_t * matrix_out,int n
     int ix = threadIdx.x+blockDim.x*blockIdx.x;
     
     matrix_out[ix] = __float2int_rd(matrix_in[ix]*lambda);
+}
+
+__global__ void quantitize_cuda_int8_near(float * matrix_in,int8_t * matrix_out,int nx,int ny,float lambda)
+{
+    // int ix = threadIdx.x+blockDim.x*blockIdx.x;
+    // int iy = threadIdx.y+blockDim.y*blockIdx.y;
+    // int idx = ix+iy*ny;
+
+    int ix = threadIdx.x+blockDim.x*blockIdx.x;
+    
+    matrix_out[ix] = (int)(matrix_in[ix]*lambda);
 }
 
 __global__ void quantitize_cuda_getR_int8(float * matrix_in,int8_t * matrix_out, float * matrix_P, float * matrix_R, int nx,int ny,float lambda)
@@ -344,7 +385,20 @@ __global__ void cuda_s_axnoy(float * matrix_in,float * matrix_out,int lenth, flo
 
     matrix_out[idx] = matrix_in[idx]*alpha;
 }
+__global__ void cuda_s_xminusa(float * matrix_in,float * matrix_out,int lenth, float alpha){
+    unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
+    if(idx>=lenth) return;
+
+    matrix_out[idx] = matrix_in[idx]-alpha;
+}
+__global__ void cuda_s_span(float * matrix_out,int lenth, float alpha){
+    unsigned int idx = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if(idx>=lenth) return;
+
+    matrix_out[idx] = alpha;
+}
 
 void strans(float *odata, float *idata,int rows,int cols){
     // dim3 dimGrid(rows/TILE_DIM, cols/TILE_DIM, 1);
@@ -403,6 +457,24 @@ float avg_abs(float* d_array,float* d_work,float* c_work, int size){
     int threadsPerBlock = 1024;
     int blocksPerGrid = (size + threadsPerBlock - 1) / threadsPerBlock;
     sum_abs_in_array<<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(int)>>>(d_array, d_work, size);
+    cudaDeviceSynchronize();
+
+    cudaMemcpy(c_work, d_work, sizeof(float)*blocksPerGrid, cudaMemcpyDeviceToHost);
+    // Finish the reduction on CPU
+    float avg_abs = 0;
+    double tmp;
+    for(int i = 0; i < blocksPerGrid; i++) {
+        tmp += c_work[i];
+    }
+    avg_abs= tmp/size;
+    return avg_abs;
+}
+
+float avg_(float* d_array,float* d_work,float* c_work, int size){
+    // calculating number of blocks based on array size
+    int threadsPerBlock = 1024;
+    int blocksPerGrid = (size + threadsPerBlock - 1) / threadsPerBlock;
+    sum_in_array<<<blocksPerGrid, threadsPerBlock, threadsPerBlock * sizeof(int)>>>(d_array, d_work, size);
     cudaDeviceSynchronize();
 
     cudaMemcpy(c_work, d_work, sizeof(float)*blocksPerGrid, cudaMemcpyDeviceToHost);
@@ -571,6 +643,15 @@ void quantitize_int8(float * matrix_in,int8_t * matrix_out,int nx,int ny,float l
     quantitize_cuda_int8<<<nx*ny/256,256>>>(matrix_in,matrix_out,nx,ny,lambda);
     cudaDeviceSynchronize();
 }
+
+void quantitize_int8_near(float * matrix_in,int8_t * matrix_out,int nx,int ny,float lambda){
+    dim3 block(32, 32);
+    //二维线程网格，128×128
+    dim3 grid((nx)/block.x, (ny)/block.y);
+
+    quantitize_cuda_int8_near<<<nx*ny/256,256>>>(matrix_in,matrix_out,nx,ny,lambda);
+    cudaDeviceSynchronize();
+}
 void quantitize_getR_int8(float * matrix_in,int8_t * matrix_out, float * matrix_P, float * matrix_R, int nx,int ny,float lambda){
     dim3 block(32, 32);
     //二维线程网格，128×128
@@ -660,3 +741,19 @@ void s_axnoy(float * matrix_in,float * matrix_out,int lenth, float alpha){
     cudaDeviceSynchronize();
 }
 
+void s_xminusa(float * matrix_in,float * matrix_out,int lenth, float alpha){
+    int threadsPerBlock = 256;
+    int blocksPerGrid = (lenth + threadsPerBlock - 1) / threadsPerBlock;    
+
+    cuda_s_xminusa<<<blocksPerGrid, threadsPerBlock>>>(matrix_in, matrix_out, lenth, alpha);
+
+    cudaDeviceSynchronize();
+}
+void s_span(float * matrix_out,int lenth, float alpha){
+    int threadsPerBlock = 256;
+    int blocksPerGrid = (lenth + threadsPerBlock - 1) / threadsPerBlock;    
+
+    cuda_s_span<<<blocksPerGrid, threadsPerBlock>>>(matrix_out, lenth, alpha);
+
+    cudaDeviceSynchronize();
+}

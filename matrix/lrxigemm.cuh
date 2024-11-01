@@ -337,6 +337,91 @@ void xigemm(T *A_d, T *B_d, T *C_d, int rowsA, int colsA, int rowsB, int colsB) 
     cudaFree(AI_d);cudaFree(BI_d);cudaFree(CI_d);cudaFree(Itmp_d);cudaFree(d_work);
 }
 
+template <typename T,int digit>
+void xigemm_AVG(T *A_d, T *B_d, T *C_d, int rowsA, int colsA, int rowsB, int colsB) {
+
+    using lowPtype = int8_t;
+
+
+    /*Step 1. prepare work space*/
+    int threadsPerBlock = 1024; 
+    const int max_work_size = (max(colsA*rowsA, colsB*rowsB)+threadsPerBlock-1)/threadsPerBlock;
+
+    T* c_work = (T *)malloc(sizeof(T) * max_work_size);
+    T* d_work;
+    cudaMalloc((T **)&d_work, sizeof(T) * max_work_size);
+
+    lowPtype *AI_d, *BI_d, *Itmp_d;
+    int32_t *CI_d;
+    
+    T *A_d2, *B_d2, *A_avg, *B_avg;
+    cudaMalloc((T **)&A_d2, sizeof(T) * colsA*rowsA);
+    cudaMalloc((T **)&B_d2, sizeof(T) * colsB*rowsB);
+    cudaMalloc((T **)&A_avg, sizeof(T) * colsA*rowsA);
+    cudaMalloc((T **)&B_avg, sizeof(T) * colsB*rowsB);
+    cudaMemcpy(A_d2, A_d, colsA*rowsA * sizeof(T), cudaMemcpyDeviceToDevice);
+    cudaMemcpy(B_d2, B_d, colsB*rowsB * sizeof(T), cudaMemcpyDeviceToDevice);
+
+    int maxRC1 = max(rowsA,rowsB);
+    int maxRC2 = max(colsA,colsB);
+    cudaMalloc((lowPtype **)&AI_d, sizeof(lowPtype) * colsA*rowsA);
+    cudaMalloc((lowPtype **)&BI_d, sizeof(lowPtype) * colsB*rowsB);
+    cudaMalloc((int32_t **)&CI_d, sizeof(int32_t) * maxRC1*maxRC2);
+    cudaMalloc((lowPtype **)&Itmp_d, sizeof(lowPtype) * maxRC1*maxRC2);
+
+
+    T avg_mA = avg_(A_d2, d_work, c_work, colsA*rowsA);
+    T avg_mB = avg_(B_d2, d_work, c_work, colsB*rowsB);   
+
+    s_span(A_avg, colsA*rowsA, avg_mA);
+    s_span(B_avg, colsB*rowsB, avg_mB);
+
+    s_xminusa(A_d2,A_d2,colsA*rowsA, avg_mA);
+    s_xminusa(B_d2,B_d2,colsB*rowsB, avg_mB);
+
+    /*Step 2. Perform a direct quantization algorithm*/
+    const int max_int = (1<<(digit-1)) - 1;
+    T max_mA = max_abs(A_d2, d_work, c_work, colsA*rowsA);
+    T max_mB = max_abs(B_d2, d_work, c_work, colsB*rowsB);
+    cudaDeviceSynchronize();
+    // printf("max_mA = %.7f\n",max_mA);
+
+    T lambdaA = (T)max_int/max_mA;
+    T lambdaB = (T)max_int/max_mB;
+    T lambdaC = lambdaA*lambdaB;
+
+    quantitize_int8_near(A_d2, AI_d, rowsA, colsA, lambdaA);
+    quantitize_int8_near(B_d2, BI_d, rowsB, colsB, lambdaB);
+
+    I8trans(Itmp_d,BI_d,rowsB,colsB);
+    cut_gemm(AI_d, Itmp_d, CI_d, rowsA, colsA, rowsB, colsB);
+    cudaDeviceSynchronize();
+
+
+    dequantitize_int32(CI_d, C_d, rowsA, colsB, lambdaC);
+    cudaDeviceSynchronize();
+
+    cublasHandle_t cublasH = NULL;
+    CUBLAS_CHECK(cublasCreate(&cublasH));
+
+    float  beta = 1.0;
+    float alpha = 1.0;
+    cublas_gemm_rowmajor(
+        &cublasH, A_d2, B_avg, C_d,  rowsA,  colsA,
+        rowsB,  colsB, alpha,  beta);
+    cublas_gemm_rowmajor(
+        &cublasH, A_avg, B_d2, C_d,  rowsA,  colsA,
+        rowsB,  colsB, alpha,  beta);
+    cublas_gemm_rowmajor(
+        &cublasH, A_avg, B_avg, C_d,  rowsA,  colsA,
+        rowsB,  colsB, alpha,  beta);
+
+
+    cudaFree(AI_d);cudaFree(BI_d);cudaFree(CI_d);cudaFree(Itmp_d);cudaFree(d_work);
+    cudaFree(A_d2);cudaFree(B_d2);
+    cudaFree(A_avg);cudaFree(B_avg);
+}
+
 
 
 
@@ -408,8 +493,8 @@ void xigemm_mem(T *A_d, T *B_d, T *C_d, char *work_dev, int rowsA, int colsA, in
     T lambdaB = (T)max_int/max_mB;
     T lambdaC = lambdaA*lambdaB;
 
-    quantitize_int8(A_d, AI_d, rowsA, colsA, lambdaA);
-    quantitize_int8(B_d, BI_d, rowsB, colsB, lambdaB);
+    quantitize_int8_near(A_d, AI_d, rowsA, colsA, lambdaA);
+    quantitize_int8_near(B_d, BI_d, rowsB, colsB, lambdaB);
 
     I8trans(Itmp_d,BI_d,rowsB,colsB);
     cut_gemm(AI_d, Itmp_d, CI_d, rowsA, colsA, rowsB, colsB);
@@ -556,7 +641,7 @@ void skxigemm(
     T lambdaA = (T)max_int/max_mA;
     T lambdaB = (T)max_int/max_mB;
     T lambdaC = lambdaA*lambdaB;
-
+    //printf("\n max A = %f \n",max_mA);
 
     quantitize_int8(A_d, AI_d, rowsA, colsA, lambdaA);
     quantitize_int8(B_d, BI_d, rowsB, colsB, lambdaB);
@@ -963,6 +1048,7 @@ void skxigemm_before(
     T lambdaB = (T)max_int/max_mB;
     T lambdaC = lambdaA*lambdaB;
 
+    //printf("\n max a_bdef = %f \n",max_mA);
     quantitize_int8(A_dbef, AI_d, rowsA, colsA, lambdaA);
     quantitize_int8(B_d, BI_d, rowsB, colsB, lambdaB);
     I8trans(Itmp_d,BI_d,rowsB,colsB);
