@@ -739,8 +739,8 @@ void skxigemm_mem(
     T lambdaC = lambdaA*lambdaB;
 
 
-    quantitize_int8(A_d, AI_d, rowsA, colsA, lambdaA);
-    quantitize_int8(B_d, BI_d, rowsB, colsB, lambdaB);
+    quantitize_int8_near(A_d, AI_d, rowsA, colsA, lambdaA);
+    quantitize_int8_near(B_d, BI_d, rowsB, colsB, lambdaB);
     I8trans(Itmp_d,BI_d,rowsB,colsB);
     cut_gemm(AI_d, Itmp_d, CI_d, rowsA, colsA, rowsB, colsB);
     dequantitize_int32(CI_d, C_d, rowsA, colsB, lambdaC);

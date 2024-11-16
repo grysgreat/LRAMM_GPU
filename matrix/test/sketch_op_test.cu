@@ -329,8 +329,8 @@ void precision_test(){
             printf("%.7f\t",R3);
         }
         {
-            skxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
-            //skxigemm_mem<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cusolverH, &cublasH);
+            //skxigemm<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
+            skxigemm_mem<float,8>(A_d,B_d,C_d,work,M,K,K,N,1, &cusolverH, &cublasH);
             cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
             float R3 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
@@ -354,7 +354,7 @@ void precision_test(){
 
         }
         {
-            skxigemm_before<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
+            //skxigemm_before<float,8>(A_d,B_d,C_d,M,K,K,N,1, &cusolverH, &cublasH);
             cudaMemcpy( matrixCQ,C_d, sizeof(float) * M * N, cudaMemcpyDeviceToHost);
             cudaDeviceSynchronize();
             float R3 = get_Ferror<float>(matrixC,matrixCQ,M,N); 
@@ -1253,12 +1253,56 @@ void max_sig_test(){
     }
 }
 
+void sketch_printm_test(){
+    cublasHandle_t cublasH = NULL;
+    CUBLAS_CHECK(cublasCreate(&cublasH));
+    // 定义数组的大小
+    int M=32,N=32,K=32;
+    // 创建一个使用float类型的数组
+    std::vector<float> arrayA(M*K);
+    std::vector<float> arrayB(K*N);
+
+
+
+    generate_matrix<float>(arrayA.data(),M,K,'n');
+  
+    print_Matrix(arrayA.data(),M,K);
+
+    float* d_A;
+    float* d_A_dq;
+    int8_t * d_ia;
+    cudaMalloc((void**)&d_A, sizeof(float) * M*K);
+    cudaMalloc((void**)&d_A_dq, sizeof(float) * M*K);
+
+    cudaMemcpy(d_A, arrayA.data(), sizeof(float) * M*K, cudaMemcpyHostToDevice);
+
+
+    const int max_int = (1<<(4-1)) - 1;
+    float max_mA = cublas_absmax(&cublasH, d_A, M*K);
+    float lambdaA = (float)max_int/max_mA;
+
+    printf("%f\n",lambdaA);
+
+    quantitize_int8(d_A, d_ia, M, K, lambdaA);
+    dequantitize_int8(d_ia, d_A_dq, M, K, lambdaA);
+
+    cudaMemcpy( arrayB.data(),d_A_dq, sizeof(float) * M*K, cudaMemcpyDeviceToHost);
+    printf("\n\n\n");
+    print_Matrix(arrayB.data(),M,K);
+
+
+
+
+
+
+}
+
 int main(){
     //skxigemm_acc();
     //curand_test();
     //sketch_acc_test();
     //performance_test();
-    //precision_test();
+    precision_test();
 
     // nsys_perf_test();
     //xhgemm_acc();
@@ -1267,5 +1311,6 @@ int main(){
     //sketchhgemm_acc_test();
     //sketchhgemm_acc_test2();
 
-    max_sig_test();
+    //max_sig_test();
+    //sketch_printm_test();
 }

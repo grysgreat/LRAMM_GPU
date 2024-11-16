@@ -293,7 +293,7 @@ __global__ void quantitize_cuda_int8_near(float * matrix_in,int8_t * matrix_out,
 
     int ix = threadIdx.x+blockDim.x*blockIdx.x;
     
-    matrix_out[ix] = (int)(matrix_in[ix]*lambda);
+    matrix_out[ix] = (int)round(matrix_in[ix]*lambda);
 }
 
 __global__ void quantitize_cuda_getR_int8(float * matrix_in,int8_t * matrix_out, float * matrix_P, float * matrix_R, int nx,int ny,float lambda)
